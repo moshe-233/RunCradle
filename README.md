@@ -8,6 +8,16 @@
 
 ---
 
+## 目录发行包（Linux amd64）
+
+本地可用 `make package VERSION=0.1.0-dev` 生成包含 `runcradle`、`libexec/process-compose`、校验清单、许可证与自检样例的目录归档（默认要求干净工作树，需先 `make prepare` 准备依赖）。完整解压后直接运行：
+
+```bash
+/path/to/runcradle-0.1.0-dev-linux-amd64/runcradle serve --workspace /path/to/project
+```
+
+无需另装 Process Compose 或传引擎路径；安装损坏会在打开工作区前拒绝启动，不回退到系统引擎。安装、只读目录、命令软链接和并列升级见 [发行包说明](packaging/README.md)。这是一项本地制包能力，尚未发布远端 release。
+
 ## 快速上手（3 步跑通闭环）
 
 所有命令均在仓库根目录下执行：

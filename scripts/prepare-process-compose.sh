@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 # Development/CI helper only. The runtime never downloads dependencies.
 set -euo pipefail
-version=v1.122.0
-archive_sha=9b6dbc38324c0b0481f1cd1dd828ffdc78117129ec797678f4bf8c4023311281
-binary_sha=7127df85c0d0c62f2f79b4d2b3082ca1d85f7c0c74523457617861d32150b0dd
+task_source_root=$(cd "$(dirname "$0")/.." && pwd -P)
+mapfile -t pin < <(python3 - "$task_source_root/internal/processcompose/pinned.json" <<'PY'
+import json, sys
+p = json.load(open(sys.argv[1]))
+for key in ('version', 'archive_sha256', 'binary_sha256', 'archive_url'):
+    print(p[key])
+PY
+)
+test "${#pin[@]}" -eq 4
+version=${pin[0]}
+archive_sha=${pin[1]}
+binary_sha=${pin[2]}
+archive_url=${pin[3]}
 test "$(uname -s)/$(uname -m)" = Linux/x86_64
 test "$(id -u)" -ne 0
-task_source_root=$(cd "$(dirname "$0")/.." && pwd -P)
 task_cache="${RUNCRADLE_CACHE_DIR:-$task_source_root/.cache}"
 destination="${1:-$task_cache/process-compose/${version}}"
 mkdir -p -- "$destination"
@@ -19,7 +28,7 @@ stage="$(mktemp -d "$destination/.prepare.XXXXXX")"
 trap 'rm -rf -- "$stage"' EXIT
 curl --fail --location --silent --show-error --proto '=https' --tlsv1.2 \
   --connect-timeout 10 --max-time 120 \
-  "https://github.com/F1bonacc1/process-compose/releases/download/${version}/process-compose_linux_amd64.tar.gz" \
+  "$archive_url" \
   --output "$stage/archive.tar.gz"
 printf '%s  %s\n' "$archive_sha" "$stage/archive.tar.gz" | sha256sum --check --status
 tar -xzf "$stage/archive.tar.gz" --no-same-owner -C "$stage" process-compose

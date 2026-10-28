@@ -35,9 +35,13 @@ func Probe(ctx context.Context, path string) (version string, err error) {
 	}
 	temp, e := os.MkdirTemp("", "runcradle-version-")
 	if e != nil {
-		return "", e
+		return "", fmt.Errorf("%w: cannot create private version probe directory: %v", ErrInternal, e)
 	}
-	defer func() { err = errors.Join(err, os.RemoveAll(temp)) }()
+	defer func() {
+		if e := os.RemoveAll(temp); e != nil {
+			err = errors.Join(err, fmt.Errorf("%w: cannot remove version probe directory: %v", ErrInternal, e))
+		}
+	}()
 	op, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	_, out, _, e := child(op, binary, temp, "--log-file", "/dev/null", "version", "--short")

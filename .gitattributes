@@ -1,1 +1,4 @@
 * text=auto eol=lf
+
+# Preserve exact upstream license bytes, including original trailing whitespace.
+third_party/licenses/process-compose/** -text -whitespace

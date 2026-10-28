@@ -42,3 +42,8 @@ jobs:
         run: make prepare-web-test
       - name: Verify definitions, shared runs and browser workflows
         run: make verify web-test
+      - name: Verify offline packaging and extracted bundle
+        run: |
+          make package-unit-test
+          make package VERSION=0.1.0-ci
+          RUNCRADLE_BUNDLE_ARCHIVE="$PWD/.work/dist/runcradle-0.1.0-ci-linux-amd64.tar.gz" make package-test

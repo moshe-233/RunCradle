@@ -1,0 +1,9 @@
+{
+  "version": "v1.122.0",
+  "source_commit": "673850dd20683ef14b33890444ca3416d02c751c",
+  "os": "linux",
+  "arch": "amd64",
+  "archive_url": "https://github.com/F1bonacc1/process-compose/releases/download/v1.122.0/process-compose_linux_amd64.tar.gz",
+  "archive_sha256": "9b6dbc38324c0b0481f1cd1dd828ffdc78117129ec797678f4bf8c4023311281",
+  "binary_sha256": "7127df85c0d0c62f2f79b4d2b3082ca1d85f7c0c74523457617861d32150b0dd"
+}

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"runcradle/internal/buildinfo"
 	"runcradle/internal/processcompose"
 	"runcradle/internal/webui"
 	"runcradle/internal/workflow"
@@ -62,7 +63,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	if len(args) == 1 && args[0] == "version" {
-		if _, err := io.WriteString(stdout, "runcradle 0.1.0-dev\n"); err != nil {
+		if _, err := io.WriteString(stdout, "runcradle "+buildinfo.Version+"\n"); err != nil {
 			return 125
 		}
 		return 0
@@ -94,7 +95,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if err := flags.Parse(args[2:]); err != nil {
 		return failure(stdout, 2, "arguments", err.Error())
 	}
-	if *workspace == "" || *file == "" || flags.NArg() != 0 || (rendering && output == "") || (binary != "" && !checkEngine) {
+	if *workspace == "" || *file == "" || flags.NArg() != 0 || (rendering && output == "") || (flagSet(flags, "process-compose") && !checkEngine) {
 		return failure(stdout, 2, "arguments", "--workspace and --file are required; positional arguments are not accepted")
 	}
 	if ctx.Err() != nil {
@@ -115,7 +116,15 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return failure(stdout, CancellationCode(ctx), "cancelled", "operation cancelled")
 	}
 	if checkEngine {
-		checked := processcompose.Check(ctx, d, binary)
+		resolved, err := resolveEngine(ctx, binary, flagSet(flags, "process-compose"))
+		if err != nil {
+			r.Status = "engine_check_failed"
+			r.EngineCheck = "unavailable"
+			r.Issues = append(r.Issues, Issue{Severity: "error", Code: "engine_unavailable", Message: err.Error()})
+			r.NextAction = "check engine installation or --process-compose; no workflow execution occurred"
+			return writeResult(stdout, r, engineResolutionCode(ctx, err))
+		}
+		checked := processcompose.Check(ctx, d, resolved.Path)
 		r.EngineCheck = checked.Status
 		r.EngineExitCode = checked.EngineExit
 		if checked.Code != 0 {

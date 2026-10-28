@@ -1,0 +1,9 @@
+version: "0.5"
+shell:
+  shell_command: /bin/sh
+  shell_argument: -c
+processes:
+  success:
+    entrypoint: ["/bin/sh", "-c", "exit 0"]
+  failure:
+    entrypoint: ["/bin/sh", "-c", "exit 7"]

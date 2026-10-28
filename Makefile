@@ -58,6 +58,16 @@ web-test: build
 
 verify: check-tree fmt-check vet test race deps build
 
+.PHONY: package package-test package-unit-test
+package: | workspace-dirs
+	GO="$(GO)" python3 scripts/package-release.py --version "$(VERSION)" $(PACKAGE_FLAGS)
+
+package-unit-test: | workspace-dirs
+	python3 -m unittest discover -s scripts -p 'test_package_release.py' -v
+
+package-test: | workspace-dirs
+	RUNCRADLE_BUNDLE_TEST=1 $(GO) test ./tests/integration -run '^TestBundled' -count=1 -timeout 180s
+
 .PHONY: workspace-dirs
 workspace-dirs:
 	@mkdir -p "$(RUNCRADLE_CACHE_DIR)" "$(RUNCRADLE_WORK_DIR)" "$(TMPDIR)"

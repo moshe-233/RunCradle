@@ -168,6 +168,12 @@ func TestHostAcceptedRequestSurvivesDisconnectAndDeduplicates(t *testing.T) {
 	if _, e = h.StartRun(context.Background(), req); e != nil {
 		t.Fatalf("retry depends on engine: %v", e)
 	}
+	// The terminal snapshot is persisted before the worker releases its active
+	// handle. Observe release separately; a leaked handle still fails boundedly.
+	deadline := time.Now().Add(2 * time.Second)
+	for h.ActiveRuns() != 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
 	if h.ActiveRuns() != 0 {
 		t.Fatal("completed adapter retained")
 	}
