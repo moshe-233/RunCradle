@@ -53,8 +53,15 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) > 0 && args[0] == "serve" {
 		return serve(ctx, args[1:], stdout, stderr)
 	}
-	if len(args) >= 2 && args[0] == "workflow" && (args[1] == "run" || args[1] == "stop") {
-		return remoteWorkflow(ctx, args, stdout, stderr)
+	if len(args) >= 2 && args[0] == "workflow" {
+		switch args[1] {
+		case "run":
+			return runWorkflow(ctx, args[2:], stdout, stderr)
+		case "stop":
+			return stopWorkflow(ctx, args[2:], stdout, stderr)
+		case "inspect":
+			return inspectWorkflow(ctx, args, stdout, stderr)
+		}
 	}
 	if len(args) == 0 || (len(args) == 1 && (args[0] == "help" || args[0] == "--help" || args[0] == "-h")) {
 		if _, err := io.WriteString(stdout, help); err != nil {
@@ -67,9 +74,6 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			return 125
 		}
 		return 0
-	}
-	if len(args) >= 2 && args[0] == "workflow" && (args[1] == "run" || args[1] == "inspect") {
-		return runtimeWorkflow(ctx, args, stdout, stderr)
 	}
 	if len(args) < 2 || args[0] != "workflow" || (args[1] != "validate" && args[1] != "render") {
 		return failure(stdout, 2, "arguments", "unsupported command; run runcradle help")

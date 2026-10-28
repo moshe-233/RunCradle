@@ -164,7 +164,7 @@ func runtimeWrite(ctx context.Context, out *output.Sink, r runtimeResult, code i
 		}
 	}
 }
-func runtimeWorkflow(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+func inspectWorkflow(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	sinks, e := output.New(stdout, stderr, 2*time.Second)
 	if e != nil {
 		return 125

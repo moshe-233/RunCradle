@@ -55,6 +55,46 @@ func TestRunRequiresExplicitServeAndDoesNotStartTask(t *testing.T) {
 	}
 }
 
+// 防止入口拆分改变错误优先级，或让非法来源提前登记运行。
+func TestRunSourceRulesAndHostErrorPrecedence(t *testing.T) {
+	dir := t.TempDir()
+	var out bytes.Buffer
+	for _, command := range []string{"run", "stop"} {
+		out.Reset()
+		code := Run(context.Background(), []string{"workflow", command, "--workspace", dir}, &out, &out)
+		if code != 2 || !strings.Contains(out.String(), "workspace host unavailable") {
+			t.Fatalf("%s: %d %s", command, code, &out)
+		}
+	}
+	server, err := httpapi.Open(httpapi.Config{Workspace: dir, Binary: "/bin/true", Helper: "/bin/true"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	cases := [][]string{
+		{}, {"--file", "pc.yaml", "--workflow-id", "library", "--revision", "rev"},
+		{"--workflow-id", "library"}, {"--file", "pc.yaml", "--revision", "rev"},
+		{"--workflow-id", "library", "--revision", "rev", "--ui", "ui.json"},
+		{"--file", "pc.yaml", "--timeout-ms", "0"},
+	}
+	for _, extra := range cases {
+		out.Reset()
+		args := append([]string{"workflow", "run", "--workspace", dir, "--target", "a"}, extra...)
+		code := Run(context.Background(), args, &out, &out)
+		var result runtimeResult
+		if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		if code != 2 || result.Message != "choose --file or --workflow-id/--revision; explicit target and timeout 1..3600000 required" || result.RunID != "" {
+			t.Fatalf("%v: %d %s", extra, code, &out)
+		}
+	}
+	items, _, err := server.Store.ListRuns("", 0, 20)
+	if err != nil || len(items) != 0 {
+		t.Fatalf("invalid sources registered runs: %v %v", items, err)
+	}
+}
+
 func TestUnownedAmbiguousSubmissionReturnsEvidenceWithoutTaskWait(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "pc.yaml"), []byte("processes: {a: {command: echo ok}}"), 0600)

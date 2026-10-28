@@ -64,6 +64,8 @@ RunCradle 采用 **Mode A · Wrap** 架构：以固定版本的 **Process Compos
 
 ## 3. 引擎接口契约 (`internal/engine/engine.go`)
 
+CLI 阅读入口为 `cli.Run`：`runWorkflow` / `stopWorkflow` 连接显式宿主，`inspectWorkflow` 只读离线历史。运行参数由 `runOptions` 保存；提交身份由 `remoteResult` 持有，提交与不确定响应处理、运行观察、显式取消分别组织。先连接宿主再校验运行来源，保留错误优先级；错误结果保留已知 request/run ID 以便恢复查询。
+
 引擎接缝保持最小化，定义为 [`Engine`](../internal/engine/engine.go#L10-L17)：
 
 ```go
