@@ -5,13 +5,20 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>RunCradle · 工作台</title>
     <link rel="stylesheet" href="/app.css" />
+    <script src="/theme.js" defer></script>
     <script src="/graph.js" defer></script>
     <script src="/app.js" defer></script>
   </head>
   <body>
     <header class="topbar">
       <button id="toggle-sidebar" aria-label="折叠资源栏">☰</button
-      ><a class="brand" href="/">◈ RunCradle</a>
+      ><a class="brand" href="/" aria-label="RunCradle 首页"
+        ><svg viewBox="0 0 28 28" aria-hidden="true">
+          <path
+            d="m14 2 11 6v12l-11 6-11-6V8Zm0 12 11-6M14 14 3 8m11 6v12"
+          /></svg
+        >RunCradle</a
+      >
       <div class="workflow-heading">
         <h1 id="workflow-title">新工作流</h1>
         <span id="draft-status">未保存</span>
@@ -21,7 +28,11 @@
         ><button id="monitor-mode" aria-pressed="false">实时监控</button>
       </div>
       <div class="top-actions">
-        <button id="open-search" aria-label="搜索与命令">搜索 /</button
+        <button id="open-search" aria-label="搜索与命令">
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="8.5" cy="8.5" r="5.5" />
+            <path d="m13 13 4 4" />
+          </svg></button
         ><button id="open-source">源码</button
         ><button id="validate-draft">校验</button
         ><button id="save-workflow">保存版本</button
@@ -73,19 +84,19 @@
           aria-label="运行版本画布"
           hidden
         ></div>
-        <div id="minimap" class="minimap" hidden></div>
+        <div id="minimap" class="minimap"></div>
         <div class="canvas-dock">
           <button id="zoom-out" aria-label="缩小">−</button
           ><button id="zoom-in" aria-label="放大">+</button
           ><button id="fit">适应 0</button
           ><button id="map-toggle">小地图 M</button
-          ><button id="trace-up">Upstream</button
-          ><button id="trace-down">Downstream</button
+          ><button id="trace-up">上游</button
+          ><button id="trace-down">下游</button
           ><button id="trace-clear">清除</button
           ><select id="visual-style" aria-label="视觉样式">
-            <option value="signal-flow">Signal Flow</option>
-            <option value="blueprint">Blueprint</option></select
-          ><button id="theme-toggle">明暗 T</button>
+            <option value="blue">蓝色</option>
+            <option value="teal">青绿色</option></select
+          ><button id="theme-toggle">深暗</button>
         </div>
       </main>
       <aside id="inspector" class="editor drawer" hidden>
@@ -105,15 +116,18 @@
             共享 YAML 或非标准字段形态，请使用源码编辑。
           </p>
           <fieldset id="node-fields">
-            <label>节点键名<input id="node-name" /></label
-            ><label>显示名称<input id="node-label" /></label
-            ><button id="rename-node">应用名称与标签</button
-            ><label
+            <h3 class="form-section">基本信息</h3>
+            <label class="property-row">节点名称<input id="node-name" /></label
+            ><label class="property-row"
+              >显示名称<input id="node-label" /></label
+            ><label class="property-row"
               >执行方式<select id="command-mode">
                 <option value="command">Shell 命令</option>
                 <option value="entrypoint">参数数组</option>
               </select></label
-            ><label id="command-label"
+            >
+            <h3 class="form-section">执行内容</h3>
+            <label id="command-label"
               >命令<textarea
                 id="node-command"
                 rows="3"
@@ -129,7 +143,7 @@
               >工作目录<input id="node-working-dir" placeholder="工作区根目录"
             /></label>
             <div class="section-heading">
-              <h3>环境变量</h3>
+              <h3>环境与参数</h3>
               <button id="add-env">+ 变量</button>
             </div>
             <div id="env-rows"></div>
@@ -138,57 +152,124 @@
               <button id="add-dependency">+ 依赖</button>
             </div>
             <div id="dependency-rows"></div>
-            <label
-              >重启策略<select id="node-restart">
-                <option value="no">no</option>
-                <option value="exit_on_failure">exit_on_failure</option>
-              </select></label
-            ><label class="check"
-              ><input id="node-exit-end" type="checkbox" />结束时退出</label
-            ><label class="check"
-              ><input id="node-exit-skipped" type="checkbox" />跳过时退出</label
-            >
-            <div class="actions">
-              <button id="apply-node" class="primary">应用节点配置</button
-              ><button id="node-run">运行到此节点</button>
+            <details id="node-advanced">
+              <summary>高级设置</summary>
+              <label
+                >重启策略<select id="node-restart">
+                  <option value="no">no</option>
+                  <option value="exit_on_failure">exit_on_failure</option>
+                </select></label
+              ><label class="check"
+                ><input id="node-exit-end" type="checkbox" />结束时退出</label
+              ><label class="check"
+                ><input
+                  id="node-exit-skipped"
+                  type="checkbox"
+                />跳过时退出</label
+              >
+              <div class="actions">
+                <button id="node-run">运行到此节点</button>
+                <button id="delete-node" class="danger">
+                  删除节点及其引用
+                </button>
+              </div>
+            </details>
+            <div class="actions inspector-actions">
+              <button id="discard-node">丢弃修改</button
+              ><button id="apply-node">应用到草稿</button>
             </div>
-            <button id="delete-node" class="danger">删除节点及其引用</button>
           </fieldset>
         </div>
         <div id="node-facts" hidden></div>
       </aside>
     </div>
     <section id="evidence-console">
-      <button id="toggle-console" class="console-summary">
+      <button
+        id="toggle-console"
+        class="console-summary"
+        aria-expanded="false"
+        aria-controls="console-body"
+      >
         <span>运行证据</span><span id="run-status">未执行</span
         ><span>历史 <b id="run-integrity">未知</b></span
         ><span>清理 <b id="run-cleanup">未知</b></span
         ><span id="stream-state"></span><span>⌃</span>
       </button>
       <div id="console-body" hidden>
-        <div class="identity">
-          <span>Run <code id="run-id"></code></span
-          ><span>Revision <code id="run-revision"></code></span>
+        <div
+          class="tabs evidence-tabs"
+          role="tablist"
+          aria-label="运行证据视图"
+        >
+          <button
+            id="evidence-overview-tab"
+            role="tab"
+            aria-selected="true"
+            aria-controls="evidence-overview"
+          >
+            概览
+          </button>
+          <button
+            id="evidence-logs-tab"
+            role="tab"
+            aria-selected="false"
+            aria-controls="evidence-logs"
+          >
+            日志
+          </button>
+          <button
+            id="evidence-details-tab"
+            role="tab"
+            aria-selected="false"
+            aria-controls="evidence-details"
+          >
+            运行详情
+          </button>
         </div>
-        <p id="run-empty">选择历史或运行一个已保存版本。</p>
-        <dl id="run-facts">
-          <dt>引擎退出</dt>
-          <dd id="run-engine">未知</dd>
-          <dt>清理范围</dt>
-          <dd id="run-scope">未知</dd>
-          <dt>输出完整性</dt>
-          <dd id="run-io">未知</dd>
-          <dt>原因</dt>
-          <dd id="run-reason">未执行</dd>
-        </dl>
-        <label>事件节点过滤<input id="event-filter" /></label>
-        <ol id="timeline"></ol>
-        <div id="run-nodes"></div>
-        <details>
-          <summary>实例参数与运行原文</summary>
-          <pre id="run-values"></pre>
-          <pre id="run-source"></pre>
-        </details>
+        <div
+          id="evidence-overview"
+          role="tabpanel"
+          aria-labelledby="evidence-overview-tab"
+        >
+          <p id="run-empty">选择历史或运行一个已保存版本。</p>
+          <div id="run-nodes"></div>
+        </div>
+        <div
+          id="evidence-logs"
+          role="tabpanel"
+          aria-labelledby="evidence-logs-tab"
+          hidden
+        >
+          <p>当前提供结构化运行事件；日志正文仅在显式保留失败线索时可用。</p>
+          <label>事件节点过滤<input id="event-filter" /></label>
+          <ol id="timeline"></ol>
+        </div>
+        <div
+          id="evidence-details"
+          role="tabpanel"
+          aria-labelledby="evidence-details-tab"
+          hidden
+        >
+          <div class="identity">
+            <span>Run <code id="run-id"></code></span
+            ><span>Revision <code id="run-revision"></code></span>
+          </div>
+          <dl id="run-facts">
+            <dt>引擎退出</dt>
+            <dd id="run-engine">未知</dd>
+            <dt>清理范围</dt>
+            <dd id="run-scope">未知</dd>
+            <dt>输出完整性</dt>
+            <dd id="run-io">未知</dd>
+            <dt>原因</dt>
+            <dd id="run-reason">未执行</dd>
+          </dl>
+          <details>
+            <summary>实例参数与运行原文</summary>
+            <pre id="run-values"></pre>
+            <pre id="run-source"></pre>
+          </details>
+        </div>
       </div>
     </section>
     <dialog id="source-dialog" class="wide-dialog editor">
@@ -254,7 +335,6 @@
     <dialog id="launchpad" class="editor">
       <div class="section-heading">
         <div>
-          <span class="eyebrow">RUN WORKFLOW</span>
           <h2>运行启动台</h2>
         </div>
         <button data-close="launchpad" aria-label="关闭运行启动台">×</button>
@@ -268,29 +348,32 @@
       <div id="preset-cards" class="preset-cards"></div>
       <pre id="preset-values" hidden></pre>
       <div id="parameter-inputs"></div>
-      <div class="actions">
-        <input
-          id="preset-name"
-          aria-label="新预设名称"
-          placeholder="预设名称"
-        /><button id="save-preset">另存为预设</button
-        ><button id="delete-preset">删除选中预设</button>
-      </div>
-      <label
-        >目标节点（多选）<select
-          id="run-targets"
-          multiple
-          size="3"
-        ></select></label
-      ><label
-        >时限（毫秒）<input
-          id="timeout-ms"
-          inputmode="numeric"
-          value="300000" /></label
-      ><label class="check"
-        ><input id="retain-evidence" type="checkbox" />保留失败线索（7
-        天）</label
-      >
+      <details class="launch-advanced">
+        <summary>预设管理与高级选项</summary>
+        <div class="actions">
+          <input
+            id="preset-name"
+            aria-label="新预设名称"
+            placeholder="预设名称"
+          /><button id="save-preset">另存为预设</button
+          ><button id="delete-preset">删除选中预设</button>
+        </div>
+        <label
+          >目标节点（多选）<select
+            id="run-targets"
+            multiple
+            size="3"
+          ></select></label
+        ><label
+          >时限（毫秒）<input
+            id="timeout-ms"
+            inputmode="numeric"
+            value="300000" /></label
+        ><label class="check"
+          ><input id="retain-evidence" type="checkbox" />保留失败线索（7
+          天）</label
+        >
+      </details>
       <p id="launch-note"></p>
       <button id="start-run" class="primary wide" disabled>运行此版本</button>
     </dialog>

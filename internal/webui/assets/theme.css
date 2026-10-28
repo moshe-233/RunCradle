@@ -1,0 +1,74 @@
+:root {
+  color-scheme: light;
+  --frame: #e8edf3;
+  --canvas: #f8fafc;
+  --surface: #ffffff;
+  --sidebar: #f2f5f8;
+  --elevated: #eef2f6;
+  --border: #dce3ed;
+  --text: #172335;
+  --muted: #58677e;
+  --accent: #2563eb;
+  --accent-soft: #e5eeff;
+  --on-accent: #ffffff;
+  --success: #23744c;
+  --success-soft: #e9f5ed;
+  --warning: #946015;
+  --danger: #b74050;
+  --danger-soft: #fff0f2;
+  --icon-bg: #e5efff;
+  --icon-fg: #2461c4;
+  --icon-detail: #83b4ff;
+  font:
+    14px/1.5 system-ui,
+    -apple-system,
+    "Noto Sans CJK SC",
+    sans-serif;
+  font-synthesis: none;
+}
+body[data-palette="teal"] {
+  --frame: #e7efed;
+  --canvas: #f7fbfa;
+  --sidebar: #f0f5f3;
+  --accent: #087b78;
+  --accent-soft: #dff2ef;
+  --icon-bg: #e0f2ee;
+  --icon-fg: #127975;
+  --icon-detail: #7acbc1;
+}
+body.dark {
+  color-scheme: dark;
+  --frame: #10171e;
+  --canvas: #141d26;
+  --surface: #1d2935;
+  --sidebar: #192530;
+  --elevated: #273544;
+  --border: #344556;
+  --text: #edf2f8;
+  --muted: #afbdd0;
+  --accent: #78b1ff;
+  --accent-soft: #243f63;
+  --on-accent: #10223c;
+  --success: #88d2a7;
+  --success-soft: #203e32;
+  --warning: #e5bb71;
+  --danger: #ffa5b1;
+  --danger-soft: #442a35;
+  --icon-bg: #253f63;
+  --icon-fg: #8cbeff;
+  --icon-detail: #4d84cc;
+}
+body.dark[data-palette="teal"] {
+  --frame: #101b1c;
+  --canvas: #142223;
+  --surface: #1d3032;
+  --sidebar: #192b2d;
+  --elevated: #2a3e40;
+  --border: #3b5254;
+  --accent: #75d5cb;
+  --accent-soft: #244b49;
+  --on-accent: #0c302e;
+  --icon-bg: #254a48;
+  --icon-fg: #90ded5;
+  --icon-detail: #438b87;
+}

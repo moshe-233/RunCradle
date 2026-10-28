@@ -13,6 +13,30 @@ import (
 	"time"
 )
 
+func TestLayoutCentersBranchEndpoints(t *testing.T) {
+	d := workflow.ParseDocument([]byte(`processes:
+  start: {command: echo start}
+  a: {command: echo a, depends_on: {start: {condition: process_completed_successfully}}}
+  b: {command: echo b, depends_on: {start: {condition: process_completed_successfully}}}
+  end: {command: echo end, depends_on: {a: {condition: process_completed_successfully}, b: {condition: process_completed_successfully}}}
+`), "yaml", nil)
+	nodes, _, _, height := layout(d.View)
+	positions := map[string]positioned{}
+	for _, n := range nodes {
+		positions[n.Name] = n
+		if n.Y+144 > height {
+			t.Fatal("graph clips the node card")
+		}
+	}
+	center := (positions["a"].Y + positions["b"].Y) / 2
+	if positions["start"].Y != center || positions["end"].Y != center {
+		t.Fatalf("branch source and sink must be centered: %+v", positions)
+	}
+	if positions["b"].Y-positions["a"].Y < 144+24 {
+		t.Fatal("branch node cards overlap or leave no readable gap")
+	}
+}
+
 func TestRenderPreservesDeclarationAndEscapesText(t *testing.T) {
 	source := []byte("processes:\n  prepare: {command: 'echo </script><script>alert(1)</script>'}\n  test: {command: echo ok, depends_on: {prepare: {condition: process_completed_successfully}}}\n")
 	d := workflow.ParseDocument(source, "yaml", []byte(`{"version":1,"title":"中文 🐈 <img src=x onerror=alert(1)>"}`))

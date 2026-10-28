@@ -21,6 +21,7 @@
     runOffset: 0,
     gap: false,
     refreshTimer: null,
+    inspectorDrafts: new Map(),
   };
   const normalize = (text) => text.replace(/\r\n?/g, "\n");
   function notice(message, error = false) {
@@ -115,7 +116,21 @@
       facts,
       container.id === "editor-graph" ? { run: launch, add: addNode } : {},
     );
+    container._display = display;
+    requestAnimationFrame(() => autoFit(container));
     updateCanvas();
+  }
+  function autoFit(container) {
+    const display = container._display;
+    if (
+      container.dataset.autoFit !== "false" &&
+      display?.graph &&
+      container.clientWidth
+    )
+      RunCradleGraph.setZoom(
+        container,
+        Math.min(1, (container.clientWidth - 40) / display.graph.width),
+      );
   }
   function fieldValue() {
     const selected = state.document?.display?.view.nodes.find(
@@ -159,7 +174,11 @@
     fieldValue();
   }
   function renderDocument(data, { saved = false, fresh = false } = {}) {
-    if (fresh) mode("design");
+    rememberInspector();
+    if (fresh) {
+      mode("design");
+      state.inspectorDrafts.clear();
+    }
     $("reimport-preview").hidden = true;
     state.importPreview = null;
     if (fresh) {
@@ -254,7 +273,7 @@
       const selected = data.display.view.nodes.find(
         (n) => n.id === state.selected,
       );
-      if (selected) selectWorkbenchNode(selected.id);
+      if (selected) selectWorkbenchNode(selected.id, false);
       else {
         $("inspector").hidden = true;
         state.selected = "";
@@ -283,6 +302,10 @@
         `${item.title} · ${item.revision.slice(0, 8)}`,
       );
       button.dataset.workflow = item.workflow_id;
+      button.setAttribute(
+        "aria-current",
+        String(item.workflow_id === state.workflow?.workflow_id),
+      );
       button.addEventListener(
         "click",
         guard(() => openWorkflow(item.workflow_id)),
@@ -385,6 +408,10 @@
   function facts(snapshot) {
     if (snapshot.run_id !== state.activeRun) return;
     state.snapshot = snapshot;
+    $("run-graph").classList.toggle(
+      "no-motion",
+      snapshot.final || snapshot.owned === false,
+    );
     state.renderedRun = snapshot.run_id;
     $("run-hud").textContent =
       `${snapshot.run_id.slice(0, 8)} · ${snapshot.task_result} · ${(snapshot.nodes || []).filter((n) => n.ended_at).length}/${snapshot.nodes?.length || 0} 已结束`;
@@ -408,8 +435,21 @@
     $("run-values").textContent =
       snapshot.values_text || "旧记录未提供实例值文本。";
     $("run-nodes").replaceChildren();
-    for (const n of snapshot.nodes || []) {
-      const item = node("div", undefined, "node-fact");
+    const priority = (n) =>
+      n.state === "failed"
+        ? (snapshot.target_nodes || []).includes(n.name)
+          ? 2
+          : 1
+        : 0;
+    const orderedFacts = [...(snapshot.nodes || [])].sort(
+      (a, b) => priority(b) - priority(a),
+    );
+    for (const n of orderedFacts) {
+      const item = node(
+        "div",
+        undefined,
+        "node-fact" + (n.state === "failed" ? " alert" : ""),
+      );
       item.append(
         node("strong", n.name),
         node(
@@ -417,6 +457,17 @@
           `${n.state} · health ${n.health} · 实际退出 ${n.exit_code === null ? "未知" : n.exit_code}${n.signal ? " · signal " + n.signal : ""} · 来源 ${n.source}`,
         ),
       );
+      const declared = state.runDefinition?.display.view.nodes.find(
+        (d) => d.name === n.name,
+      );
+      if (declared) {
+        const locate = node("button", "定位节点 " + n.name);
+        locate.addEventListener("click", () => {
+          mode("monitor");
+          focusNode(declared.id);
+        });
+        item.append(locate);
+      }
       if (n.diagnostic)
         item.append(
           node(
@@ -714,13 +765,13 @@
       b.addEventListener("click", () => closeDialog(b.dataset.close)),
     );
   function mode(value) {
+    rememberInspector();
     state.mode = value;
     $("editor-graph").hidden = value !== "design";
     $("run-graph").hidden = value !== "monitor";
     $("design-mode").setAttribute("aria-pressed", String(value === "design"));
     $("monitor-mode").setAttribute("aria-pressed", String(value === "monitor"));
-    $("canvas-mode").textContent =
-      value === "design" ? "配置声明 · DESIGN" : "运行事实 · MONITOR";
+    $("canvas-mode").textContent = value === "design" ? "配置声明" : "运行事实";
     $("run-hud").hidden = value !== "monitor";
     $("add-node").hidden = value !== "design";
     $("inspector").hidden = true;
@@ -747,7 +798,9 @@
       .querySelector(`[data-node="${id}"]`)
       ?.scrollIntoView({ block: "center", inline: "center" });
   }
-  function selectWorkbenchNode(id) {
+  function selectWorkbenchNode(id, remember = true) {
+    if (remember) rememberInspector();
+    const opening = $("inspector").hidden;
     state.selected = id;
     const n = selectedNode();
     if (!n) return;
@@ -762,6 +815,23 @@
     }
     renderNodeFacts();
     updateCanvas();
+    inspectorPresentation(opening);
+  }
+  const inspectorOverlay = () => matchMedia("(max-width: 1250px)").matches;
+  function inspectorPresentation(opening = false) {
+    $("inspector").setAttribute(
+      "role",
+      inspectorOverlay() ? "dialog" : "complementary",
+    );
+    $("inspector").setAttribute("aria-labelledby", "inspector-title");
+    if (opening && inspectorOverlay()) $("close-inspector").focus();
+  }
+  function closeInspector() {
+    rememberInspector();
+    $("inspector").hidden = true;
+    currentCanvas()
+      .querySelector(`.graph-node[data-node="${state.selected}"]`)
+      ?.focus({ preventScroll: true });
   }
   function inspectorTab(tab) {
     $("node-config").hidden = tab !== "config";
@@ -865,7 +935,7 @@
         }
         if (!key.value) throw new Error("先填写变量名");
         await applyNode();
-        state.binding = { process: n.name, key: key.value };
+        state.binding = { process: selectedNode().name, key: key.value };
         $("bind-name").value = key.value.toLowerCase();
         $("bind-type").value = "string";
         $("bind-default").value = value.value;
@@ -873,6 +943,7 @@
         showDialog("bind-dialog");
       }),
     );
+    row.dataset.boundInput = e.bound_input || "";
     row.append(key, value, bind, removeButton(row));
     $("env-rows").append(row);
   }
@@ -895,22 +966,59 @@
     row.append(from, condition, removeButton(row));
     $("dependency-rows").append(row);
   }
+  function inspectorValues() {
+    return {
+      name: $("node-name").value,
+      label: $("node-label").value,
+      command_mode: $("command-mode").value,
+      command: $("node-command").value,
+      entrypoint: [...$("entrypoint-rows").querySelectorAll("input")].map(
+        (e) => e.value,
+      ),
+      working_dir: $("node-working-dir").value,
+      env_items: [...$("env-rows").children].map((row) => ({
+        key: row.querySelector(".env-key").value,
+        value: row.querySelector(".env-value").value,
+        bound_input: row.dataset.boundInput,
+      })),
+      depends_on: [...$("dependency-rows").children].map((row) => ({
+        from: row.children[0].value,
+        condition: row.children[1].value,
+      })),
+      restart: $("node-restart").value,
+      exit_on_end: $("node-exit-end").checked,
+      exit_on_skipped: $("node-exit-skipped").checked,
+    };
+  }
+  function rememberInspector() {
+    const n = selectedNode();
+    if (state.mode !== "design" || !n || $("inspector").hidden) return;
+    state.inspectorDrafts.set(n.id, {
+      signature: JSON.stringify(n),
+      values: inspectorValues(),
+    });
+  }
   function fillInspector(n) {
-    $("node-name").value = n.name;
-    $("node-label").value = n.label;
+    const cached = state.inspectorDrafts.get(n.id);
+    const v = cached?.signature === JSON.stringify(n) ? cached.values : null;
+    if (!v) state.inspectorDrafts.delete(n.id);
+    $("node-name").value = v?.name ?? n.name;
+    $("node-label").value = v?.label ?? n.label;
     $("command-mode").value =
-      n.command_mode === "entrypoint" ? "entrypoint" : "command";
-    $("node-command").value = n.declaration_text.command || "";
-    $("node-working-dir").value = n.working_dir;
-    $("node-restart").value = n.restart;
-    $("node-exit-end").checked = n.exit_on_end;
-    $("node-exit-skipped").checked = n.exit_on_skipped;
+      (v?.command_mode ?? n.command_mode) === "entrypoint"
+        ? "entrypoint"
+        : "command";
+    $("node-command").value = v?.command ?? n.declaration_text.command ?? "";
+    $("node-working-dir").value = v?.working_dir ?? n.working_dir;
+    $("node-restart").value = v?.restart ?? n.restart;
+    $("node-exit-end").checked = v?.exit_on_end ?? n.exit_on_end;
+    $("node-exit-skipped").checked = v?.exit_on_skipped ?? n.exit_on_skipped;
     $("entrypoint-rows").replaceChildren();
-    n.entrypoint_items.forEach(argumentRow);
+    (v?.entrypoint ?? n.entrypoint_items).forEach(argumentRow);
     $("env-rows").replaceChildren();
-    n.env_items.forEach(envRow);
+    (v?.env_items ?? n.env_items).forEach(envRow);
     $("dependency-rows").replaceChildren();
-    n.dependencies.forEach(dependencyRow);
+    (v?.depends_on ?? n.dependencies).forEach(dependencyRow);
     const raw = state.document.display.view.raw_edit_only;
     $("raw-only").hidden = !raw;
     $("node-fields").disabled = raw || !state.document.valid;
@@ -921,8 +1029,8 @@
     $("entrypoint-editor").hidden = !entry;
     $("command-label").hidden = entry;
   }
-  async function wb(edit, rawFields = {}) {
-    const base = JSON.stringify({ ...draft(), workbench_edit: edit });
+  async function wb(edit, rawFields = {}, source = draft()) {
+    const base = JSON.stringify({ ...source, workbench_edit: edit });
     let body = base;
     for (const [key, value] of Object.entries(rawFields)) {
       body = body.slice(0, -2) + "," + JSON.stringify(key) + ":" + value + "}}";
@@ -942,28 +1050,43 @@
   async function applyNode() {
     const n = selectedNode();
     if (!n) throw new Error("请选择节点");
-    return wb({
-      action: "update_process",
-      process: n.name,
-      command_mode: $("command-mode").value,
-      command: $("node-command").value,
-      entrypoint: [...$("entrypoint-rows").querySelectorAll("input")].map(
-        (e) => e.value,
-      ),
-      working_dir: $("node-working-dir").value,
-      env_items: [...$("env-rows").children].map((row) => ({
-        key: row.querySelector(".env-key").value,
-        value: row.querySelector(".env-value").value,
-      })),
-      depends_on: [...$("dependency-rows").children].map((row) => ({
-        from: row.children[0].value,
-        condition: row.children[1].value,
-      })),
-      restart: $("node-restart").value,
-      exit_on_end: $("node-exit-end").checked,
-      exit_on_skipped: $("node-exit-skipped").checked,
-    });
+    const { name, ...values } = inspectorValues();
+    values.env_items = values.env_items.map(({ key, value }) => ({
+      key,
+      value,
+    }));
+    let source = draft();
+    if (name !== n.name) {
+      // Both operations validate in memory; render only after the whole edit succeeds.
+      const renamed = await api("validate", {
+        method: "POST",
+        body: {
+          ...source,
+          workbench_edit: {
+            action: "rename_process",
+            process: n.name,
+            new_name: name,
+          },
+        },
+      });
+      source = {
+        format: renamed.format,
+        source: renamed.source,
+        entry: renamed.entry,
+      };
+      if (renamed.ui_source)
+        Object.assign(source, {
+          ui_source: renamed.ui_source,
+          ui_path: renamed.ui_path,
+        });
+    }
+    return wb(
+      { action: "update_process", process: name, ...values },
+      {},
+      source,
+    );
   }
+
   function addNode(upstream = "") {
     state.addUpstream = upstream;
     $("add-upstream").textContent = upstream
@@ -1217,8 +1340,12 @@
   );
   on("design-mode", () => mode("design"));
   on("monitor-mode", () => mode("monitor"));
-  on("close-inspector", () => {
-    $("inspector").hidden = true;
+  on("close-inspector", closeInspector);
+  on("discard-node", () => {
+    const n = selectedNode();
+    if (!n) return;
+    state.inspectorDrafts.delete(n.id);
+    fillInspector(n);
   });
   on("config-tab", () => inspectorTab("config"));
   on("facts-tab", () => {
@@ -1255,20 +1382,6 @@
     true,
   );
   on("apply-node", applyNode, true);
-  on(
-    "rename-node",
-    async () => {
-      const n = selectedNode(),
-        name = $("node-name").value;
-      await wb({
-        action: name === n.name ? "update_process" : "rename_process",
-        process: n.name,
-        new_name: name,
-        label: $("node-label").value,
-      });
-    },
-    true,
-  );
   on(
     "delete-node",
     async () => {
@@ -1345,7 +1458,23 @@
   $("global-search").addEventListener("input", search);
   on("toggle-console", () => {
     $("console-body").hidden = !$("console-body").hidden;
+    $("toggle-console").setAttribute(
+      "aria-expanded",
+      String(!$("console-body").hidden),
+    );
   });
+  for (const tab of ["overview", "logs", "details"]) {
+    const button = $("evidence-" + tab + "-tab");
+    on(button.id, () => {
+      for (const name of ["overview", "logs", "details"]) {
+        $("evidence-" + name).hidden = name !== tab;
+        $("evidence-" + name + "-tab").setAttribute(
+          "aria-selected",
+          String(name === tab),
+        );
+      }
+    });
+  }
   $("event-filter").addEventListener("input", () => {
     for (const e of $("timeline").children)
       e.hidden = !e.textContent.includes($("event-filter").value);
@@ -1374,24 +1503,33 @@
         .toLowerCase()
         .includes($("library-filter").value.toLowerCase());
   });
-  on("zoom-in", () =>
-    RunCradleGraph.setZoom(
-      currentCanvas(),
-      (Number(currentCanvas().dataset.zoom) || 1) * 1.2,
+  on(
+    "zoom-in",
+    () => (
+      (currentCanvas().dataset.autoFit = "false"),
+      RunCradleGraph.setZoom(
+        currentCanvas(),
+        (Number(currentCanvas().dataset.zoom) || 1) * 1.2,
+      )
     ),
   );
-  on("zoom-out", () =>
-    RunCradleGraph.setZoom(
-      currentCanvas(),
-      (Number(currentCanvas().dataset.zoom) || 1) / 1.2,
+  on(
+    "zoom-out",
+    () => (
+      (currentCanvas().dataset.autoFit = "false"),
+      RunCradleGraph.setZoom(
+        currentCanvas(),
+        (Number(currentCanvas().dataset.zoom) || 1) / 1.2,
+      )
     ),
   );
   on("fit", () => {
+    currentCanvas().dataset.autoFit = "true";
     const d = currentDisplay();
     if (d)
       RunCradleGraph.setZoom(
         currentCanvas(),
-        (currentCanvas().clientWidth - 60) / d.graph.width,
+        Math.min(1, (currentCanvas().clientWidth - 40) / d.graph.width),
       );
   });
   on("map-toggle", () => {
@@ -1407,18 +1545,55 @@
       state.direction = dir;
       updateCanvas();
     });
-  on("theme-toggle", () => document.body.classList.toggle("light"));
-  $("visual-style").addEventListener("change", () =>
-    document.body.classList.toggle(
-      "blueprint",
-      $("visual-style").value === "blueprint",
-    ),
+  RunCradleTheme.mount("theme-toggle", "visual-style");
+  const canvasResize = new ResizeObserver((entries) =>
+    entries.forEach((entry) => autoFit(entry.target)),
   );
+  canvasResize.observe($("editor-graph"));
+  canvasResize.observe($("run-graph"));
+  matchMedia("(max-width: 1250px)").addEventListener("change", () => {
+    inspectorPresentation(!$("inspector").hidden);
+  });
+  matchMedia("(max-width: 700px)").addEventListener("change", (event) => {
+    if (event.matches) document.body.classList.add("sidebar-collapsed");
+  });
   for (const p of ["native", "ui"]) {
     $(p + "-source").addEventListener("input", sourceLines);
     $(p + "-source").addEventListener("scroll", sourceLines);
   }
   document.addEventListener("keydown", (e) => {
+    if (
+      !$("inspector").hidden &&
+      inspectorOverlay() &&
+      !document.querySelector("dialog[open]")
+    ) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeInspector();
+        return;
+      }
+      if (e.key === "Tab") {
+        const items = [
+          ...$("inspector").querySelectorAll(
+            "button,input,textarea,select,summary,[tabindex]",
+          ),
+        ].filter(
+          (el) =>
+            !el.matches(":disabled") &&
+            el.tabIndex >= 0 &&
+            el.getClientRects().length,
+        );
+        const index = items.indexOf(document.activeElement);
+        if (
+          index < 0 ||
+          (!e.shiftKey && index === items.length - 1) ||
+          (e.shiftKey && index === 0)
+        ) {
+          e.preventDefault();
+          (e.shiftKey ? items.at(-1) : items[0])?.focus();
+        }
+      }
+    }
     const editing =
       e.target.matches("input,textarea,select") || e.target.isContentEditable;
     if (

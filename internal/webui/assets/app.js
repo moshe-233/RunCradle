@@ -10,7 +10,8 @@
     return e;
   };
   let selectedID = nodes[0]?.id,
-    direction = "";
+    direction = "",
+    automaticZoom = true;
   $("native-source").textContent = payload.source;
   if ($("ui-source")) $("ui-source").textContent = payload.ui_source;
   function select(id) {
@@ -78,19 +79,31 @@
         $("canvas"),
         (Number($("canvas").dataset.zoom) || 1) * factor,
       );
-  on("zoom-in", () => zoom(1.2));
-  on("zoom-out", () => zoom(1 / 1.2));
-  on("fit", () =>
+  const fit = () =>
     RunCradleGraph.setZoom(
       $("canvas"),
-      ($("canvas").clientWidth - 20) / payload.graph.width,
-    ),
-  );
+      Math.min(1, ($("canvas").clientWidth - 40) / payload.graph.width),
+    );
+  on("zoom-in", () => {
+    automaticZoom = false;
+    zoom(1.2);
+  });
+  on("zoom-out", () => {
+    automaticZoom = false;
+    zoom(1 / 1.2);
+  });
+  on("fit", () => {
+    automaticZoom = true;
+    fit();
+  });
+  new ResizeObserver(() => {
+    if (automaticZoom) fit();
+  }).observe($("canvas"));
+  fit();
   on("offline-map-toggle", () => {
     $("offline-map").hidden = !$("offline-map").hidden;
   });
-  on("offline-theme", () => document.body.classList.toggle("light"));
-  on("offline-style", () => document.body.classList.toggle("blueprint"));
+  RunCradleTheme.mount("offline-theme", "offline-palette");
   for (const [id, dir] of [
     ["offline-up", "upstream"],
     ["offline-down", "downstream"],

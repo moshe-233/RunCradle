@@ -14,6 +14,8 @@ func Handler() http.Handler {
 			name, mime = "shell.js", "application/javascript; charset=utf-8"
 		case "/graph.js":
 			name, mime = "graph.js", "application/javascript; charset=utf-8"
+		case "/theme.js":
+			name, mime = "theme.js", "application/javascript; charset=utf-8"
 		case "/app.css":
 			name, mime = "shell.css", "text/css; charset=utf-8"
 		default:
@@ -26,6 +28,8 @@ func Handler() http.Handler {
 			return
 		}
 		if name == "shell.css" {
+			theme, _ := assets.ReadFile("assets/theme.css")
+			raw = append(theme, raw...)
 			extra, _ := assets.ReadFile("assets/graph.css")
 			raw = append(raw, extra...)
 		}

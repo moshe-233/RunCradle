@@ -58,6 +58,11 @@ func Render(d workflow.Document, at time.Time) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	themeCSS, err := assets.ReadFile("assets/theme.css")
+	if err != nil {
+		return nil, err
+	}
+	css = append(themeCSS, css...)
 	script, err := assets.ReadFile("assets/app.js")
 	if err != nil {
 		return nil, err
@@ -67,6 +72,11 @@ func Render(d workflow.Document, at time.Time) ([]byte, error) {
 		return nil, err
 	}
 	script = append(append(graphScript, byte('\n')), script...)
+	themeScript, err := assets.ReadFile("assets/theme.js")
+	if err != nil {
+		return nil, err
+	}
+	script = append(append(themeScript, byte('\n')), script...)
 	graphStyle, err := assets.ReadFile("assets/graph.css")
 	if err != nil {
 		return nil, err
@@ -168,9 +178,15 @@ func layout(view workflow.View) ([]positioned, []connection, int, int) {
 	}
 	positions := map[string]positioned{}
 	nodes := []positioned{}
+	maxRows := 1
+	for _, layer := range layers {
+		if len(layer) > maxRows {
+			maxRows = len(layer)
+		}
+	}
 	width, height := 660, 220
 	for _, n := range ordered {
-		x, y := 40+rank[n.Name]*320, 50+row[n.Name]*144
+		x, y := 40+rank[n.Name]*320, 50+row[n.Name]*190+(maxRows-len(layers[rank[n.Name]]))*95
 		label := []rune(n.Label)
 		if len(label) > 12 {
 			label = append(label[:11], '…')
@@ -181,14 +197,14 @@ func layout(view workflow.View) ([]positioned, []connection, int, int) {
 		if x+280 > width {
 			width = x + 280
 		}
-		if y+150 > height {
-			height = y + 150
+		if y+190 > height {
+			height = y + 190
 		}
 	}
 	edges := []connection{}
 	for _, e := range view.Edges {
 		a, b := positions[e.From], positions[e.To]
-		x1, y1, x2, y2 := a.X+240, a.Y+52, b.X, b.Y+52
+		x1, y1, x2, y2 := a.X+240, a.Y+72, b.X, b.Y+72
 		mid := (x1 + x2) / 2
 		edges = append(edges, connection{FromID: a.ID, ToID: b.ID, FromName: e.From, ToName: e.To, Path: fmt.Sprintf("M %d %d C %d %d %d %d %d %d", x1, y1, mid, y1, mid, y2, x2, y2), Condition: strings.TrimSpace(e.Condition), Label: conditionLabel(e.Condition), X: mid, Y: (y1+y2)/2 - 10})
 	}

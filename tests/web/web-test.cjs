@@ -187,6 +187,20 @@ async function reveal(page, selector) {
       .click();
   }
   if (
+    target === "launchpad" &&
+    [
+      "#run-targets",
+      "#retain-evidence",
+      "#timeout-ms",
+      "#preset-name",
+      "#save-preset",
+      "#delete-preset",
+    ].includes(selector)
+  )
+    await page.locator(".launch-advanced").evaluate((d) => {
+      d.open = true;
+    });
+  if (
     [
       "#edit-node",
       "#edit-field",
@@ -294,6 +308,22 @@ async function main() {
             );
             const firstRun = await page.locator("#run-id").textContent();
             await page.locator("#toggle-console").click();
+            assert.equal(
+              await page
+                .locator("#run-nodes .node-fact strong")
+                .first()
+                .textContent(),
+              "check",
+              "failed target is first in evidence overview",
+            );
+            await page
+              .getByRole("button", { name: "定位节点 check", exact: true })
+              .click();
+            assert.equal(
+              await page.locator("#inspector-id").textContent(),
+              "check",
+            );
+            await page.locator("#close-inspector").click();
             assert.match(
               await page.locator("#run-nodes").innerText(),
               /check[\s\S]*7/,
@@ -684,6 +714,7 @@ async function main() {
             )
               await page.locator("#toggle-sidebar").click();
             await page.locator("#editor-graph [data-node]").first().click();
+            await page.locator("#node-advanced summary").click();
             await page.locator("#node-exit-end").uncheck();
             await page.locator("#add-env").click();
             await page.locator(".env-key").fill("COUNT");
@@ -721,7 +752,7 @@ async function main() {
             );
             await page.locator("#node-name").fill("renamed");
             await page.locator("#node-label").fill("后续检查");
-            await page.locator("#rename-node").click();
+            await page.locator("#apply-node").click();
             await page.waitForFunction(
               () =>
                 document.querySelector("#inspector-id").textContent ===
@@ -739,10 +770,10 @@ async function main() {
               await page.locator("#editor-graph svg").getAttribute("width"),
               before,
             );
-            await page.locator("#visual-style").selectOption("blueprint");
+            await page.locator("#visual-style").selectOption("teal");
             await page.locator("#theme-toggle").click();
             await page.locator("#theme-toggle").click();
-            await page.locator("#visual-style").selectOption("signal-flow");
+            await page.locator("#visual-style").selectOption("blue");
             await page.locator("#open-search").click();
             await page.locator("#global-search").fill("COUNT");
             await page.locator("#search-results button").first().click();
@@ -875,7 +906,7 @@ async function main() {
             assert.equal(await offline.locator("#offline-map svg").count(), 1);
             await offline.locator("#zoom-in").click();
             await offline.locator("#offline-theme").click();
-            await offline.locator("#offline-style").click();
+            await offline.locator("#offline-palette").selectOption("teal");
             await offline.screenshot({
               path: path.join(
                 os.tmpdir(),

@@ -124,65 +124,137 @@ window.RunCradleGraph = (() => {
           "aria-label": p.Label,
           transform: `translate(${p.X},${p.Y})`,
         });
+      const labels = {
+        declared: "未运行",
+        running: "运行中",
+        pending: "等待中",
+        completed: "已结束",
+        failed: "失败",
+        skipped: "已跳过",
+        stopped: "已停止",
+        unknown: "未知",
+      };
+      const icon = svgNode("g", {
+        class: "node-icon",
+        "aria-hidden": "true",
+        transform: "translate(12,14) scale(1.2)",
+      });
+      icon.append(
+        svgNode("rect", { width: 36, height: 36, rx: 8, class: "icon-base" }),
+      );
+      if (d?.role === "service") {
+        icon.append(
+          svgNode("rect", {
+            x: 7,
+            y: 8,
+            width: 22,
+            height: 8,
+            rx: 2,
+            class: "icon-detail",
+          }),
+          svgNode("rect", {
+            x: 7,
+            y: 20,
+            width: 22,
+            height: 8,
+            rx: 2,
+            class: "icon-detail",
+          }),
+          svgNode("circle", {
+            cx: 11,
+            cy: 12,
+            r: 1.5,
+            class: "icon-highlight",
+          }),
+          svgNode("circle", {
+            cx: 11,
+            cy: 24,
+            r: 1.5,
+            class: "icon-highlight",
+          }),
+        );
+      } else {
+        icon.append(
+          svgNode("rect", {
+            x: 6,
+            y: 8,
+            width: 24,
+            height: 21,
+            rx: 4,
+            class: "icon-detail",
+          }),
+          svgNode("path", { d: "m11 14 4 4-4 4m8 0h6", class: "icon-stroke" }),
+        );
+      }
+      const receipt = f
+        ? f.signal
+          ? "信号 " + f.signal
+          : f.exit_code !== null && f.exit_code !== undefined
+            ? "退出 " + f.exit_code
+            : "退出未知"
+        : "";
       g.append(
-        svgNode("title", {}, p.Label + " · " + (f?.state || "配置声明")),
-        svgNode("rect", { width: 240, height: 104, rx: 10 }),
-        svgNode("circle", { cx: 17, cy: 22, r: 4, class: "state-dot" }),
+        svgNode(
+          "title",
+          {},
+          p.Label + " · " + (labels[f?.state] || (f ? f.state : "未运行")),
+        ),
+        svgNode("rect", { width: 240, height: 144, rx: 8 }),
+        icon,
         svgNode(
           "text",
-          { x: 29, y: 26, class: "node-title" },
-          short(p.Label, 17),
+          { x: 64, y: 38, class: "node-title" },
+          short(p.Label, 8),
         ),
         svgNode(
           "text",
-          { x: 14, y: 44, class: "node-name" },
-          short(p.Name, 20),
+          { x: 64, y: 59, class: "node-name" },
+          short(p.Name, 18),
+        ),
+        svgNode(
+          "text",
+          { x: 14, y: 87, class: "node-command" },
+          short(d?.command_preview, 23),
+        ),
+        svgNode("rect", {
+          x: 14,
+          y: 108,
+          width: 80,
+          height: 24,
+          rx: 12,
+          class: "state-pill",
+        }),
+        svgNode("circle", { cx: 24, cy: 120, r: 2.5, class: "state-dot" }),
+        svgNode(
+          "text",
+          { x: 33, y: 124, class: "node-state" },
+          labels[f?.state] || (f ? "未知" : "未运行"),
+        ),
+        svgNode(
+          "text",
+          { x: 14, y: 103, class: "node-probe" },
+          d?.has_readiness_probe || d?.has_liveness_probe
+            ? f?.health === "ready"
+              ? "探针就绪"
+              : "探针 " + (f?.health || "未观察")
+            : "",
+        ),
+        svgNode(
+          "text",
+          { x: 226, y: 124, "text-anchor": "end", class: "node-exit" },
+          receipt,
         ),
         svgNode(
           "text",
           {
             x: 226,
-            y: 44,
+            y: 59,
             "text-anchor": "end",
             class: "node-role",
             "data-start": f?.started_at || "",
             "data-end": f?.ended_at || "",
           },
-          f?.state || d?.role?.toUpperCase(),
-        ),
-        svgNode(
-          "text",
-          { x: 14, y: 64, class: "node-command" },
-          short(d?.command_preview),
-        ),
-        svgNode(
-          "text",
-          { x: 14, y: 80, class: "node-param" },
-          short(
-            (d?.env_items || [])
-              .filter((x) => x.bound_input)
-              .map((x) => "◇ " + x.bound_input)
-              .join(" · "),
-          ),
-        ),
-      );
-      const probe =
-        d?.has_readiness_probe || d?.has_liveness_probe
-          ? f?.health || "未观察"
-          : "No Probe";
-      const receipt = f
-        ? f.signal
-          ? "SIG " + f.signal
-          : f.exit_code !== null && f.exit_code !== undefined
-            ? "EXIT " + f.exit_code
-            : "UNKNOWN"
-        : "未执行";
-      g.append(
-        svgNode("text", { x: 14, y: 96, class: "node-probe" }, probe),
-        svgNode(
-          "text",
-          { x: 226, y: 96, "text-anchor": "end", class: "node-exit" },
-          receipt,
+          "",
         ),
       );
       const activate = () => select?.(p.ID);
@@ -225,8 +297,8 @@ window.RunCradleGraph = (() => {
           "aria-label": "新增下游 " + p.Name,
         });
         btn.append(
-          svgNode("circle", { cx: 240, cy: 52, r: 11 }),
-          svgNode("text", { x: 236, y: 57 }, "+"),
+          svgNode("circle", { cx: 240, cy: 72, r: 11 }),
+          svgNode("text", { x: 236, y: 77 }, "+"),
         );
         const add = (e) => {
           e.stopPropagation();
@@ -287,7 +359,7 @@ window.RunCradleGraph = (() => {
         x: p.X,
         y: p.Y,
         width: 240,
-        height: 104,
+        height: 144,
         rx: 10,
         tabindex: 0,
         role: "button",

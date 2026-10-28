@@ -5,97 +5,124 @@
 }
 .edge path {
   fill: none;
-  stroke: var(--muted, #64748b);
-  stroke-width: 1.6;
+  stroke: var(--muted, #687890);
+  stroke-width: 1.35;
 }
 .edge rect {
-  fill: var(--surface, #0f172a);
-  stroke: var(--border, #334155);
+  fill: var(--surface, #fff);
+  stroke: var(--border, #dce3ed);
+  rx: 4;
 }
 .edge text {
-  font-size: 10px;
-  fill: var(--text, #e2e8f0);
+  font-size: 11px;
+  fill: var(--muted, #58677e);
 }
 .edge.waiting path {
-  stroke: #fbbf24;
-  stroke-dasharray: 5 5;
-  animation: flow 2s linear infinite;
+  stroke: var(--warning, #946015);
 }
 .edge.satisfied path {
-  stroke: #34d399;
-  stroke-dasharray: 9 4;
-  animation: flow 1s linear infinite;
+  stroke: var(--success, #23744c);
 }
 .edge.blocked path {
-  stroke: #fb7185;
-  stroke-dasharray: 3 6;
+  stroke: var(--danger, #b74050);
+  stroke-dasharray: 3 5;
 }
-.graph-node > rect {
-  fill: var(--surface, #0f172a);
-  stroke: var(--border, #334155);
+.graph-node > rect:first-of-type {
+  fill: var(--surface, #fff);
+  stroke: var(--border, #dce3ed);
   stroke-width: 1.2;
 }
 .graph-node text {
-  fill: var(--text, #e2e8f0);
-  font-size: 11px;
+  fill: var(--text, #172335);
+  font-size: 12px;
   pointer-events: none;
 }
 .graph-node .node-title {
+  font-size: 19px;
   font-weight: 650;
-  font-size: 13px;
 }
 .graph-node .node-name,
 .graph-node .node-command {
-  font-family: ui-monospace, monospace;
-  fill: var(--muted, #94a3b8);
-  font-size: 10px;
+  font:
+    15px ui-monospace,
+    monospace;
+}
+.graph-node .node-name {
+  fill: var(--muted);
 }
 .graph-node .node-role {
-  fill: var(--muted, #94a3b8);
-  font-size: 9px;
-}
-.graph-node .node-param {
-  fill: #a78bfa;
-  font-size: 9px;
+  fill: var(--muted);
+  font-size: 10px;
 }
 .graph-node .node-probe,
-.graph-node .node-exit {
-  font-size: 9px;
+.graph-node .node-exit,
+.graph-node .node-state {
+  font-size: 12px;
+  fill: var(--muted);
+}
+.graph-node .state-pill {
+  fill: var(--elevated, #eef2f6);
+  stroke: none;
 }
 .state-dot {
-  fill: #64748b;
+  fill: var(--muted);
 }
 .running .state-dot {
-  fill: #22d3ee;
+  fill: var(--accent);
+  animation: breathe 1.8s ease-in-out infinite;
 }
 .completed .state-dot {
-  fill: #34d399;
+  fill: var(--success);
 }
 .failed .state-dot {
-  fill: #fb7185;
+  fill: var(--danger);
 }
 .pending .state-dot {
-  fill: #fbbf24;
+  fill: var(--warning);
 }
-.running > rect {
-  stroke: #22d3ee;
+.graph-node.failed .state-pill {
+  fill: var(--danger-soft);
 }
-.failed > rect {
-  stroke: #fb7185;
+.graph-node.failed .node-state {
+  fill: var(--danger);
 }
-.selected > rect,
-.graph-node:focus > rect {
-  stroke: #a78bfa;
+.graph-node.selected > rect:first-of-type {
+  stroke: var(--accent, #2563eb);
   stroke-width: 2;
+}
+.graph-node:focus-visible > rect:first-of-type {
+  stroke: var(--accent, #2563eb);
+  stroke-width: 3;
+  stroke-dasharray: 4 3;
 }
 .graph-node {
   cursor: pointer;
   outline: none;
 }
+.node-icon .icon-base {
+  fill: var(--icon-bg, #e5efff);
+}
+.node-icon .icon-detail {
+  fill: var(--icon-fg, #2461c4);
+}
+.node-icon .icon-highlight {
+  fill: var(--icon-bg, #e5efff);
+}
+.node-icon .icon-stroke {
+  fill: none;
+  stroke: var(--icon-bg, #e5efff);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .node-quick rect,
 .node-add circle {
-  fill: var(--elevated, #1e293b);
-  stroke: var(--border, #334155);
+  fill: var(--surface, #fff);
+  stroke: var(--border, #dce3ed);
+}
+.node-quick text,
+.node-add text {
+  fill: var(--accent);
 }
 .node-quick,
 .node-add {
@@ -108,41 +135,39 @@
   opacity: 1;
 }
 .dimmed {
-  opacity: 0.2;
+  opacity: 0.22;
 }
 .minimap {
   position: absolute;
-  bottom: 70px;
-  right: 20px;
-  background: var(--surface, #0f172a);
-  border: 1px solid var(--border, #334155);
+  bottom: 76px;
+  right: 16px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #dce3ed);
   border-radius: 8px;
   padding: 8px;
+  width: 170px;
+}
+.minimap svg {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 .minimap rect {
-  fill: #64748b;
+  fill: var(--muted, #64748b);
   cursor: pointer;
 }
-.blueprint .diagram {
-  background-color: #082138;
-  background-image:
-    linear-gradient(#17394e 1px, transparent 1px),
-    linear-gradient(90deg, #17394e 1px, transparent 1px);
-  background-size: 24px 24px;
-}
-.blueprint .edge path {
+.no-motion .state-dot {
   animation: none;
 }
-.no-motion .edge path {
-  animation: none;
-}
-@keyframes flow {
-  to {
-    stroke-dashoffset: -26;
+@keyframes breathe {
+  50% {
+    opacity: 0.4;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *,
+  *::before,
+  *::after {
     animation: none !important;
     transition: none !important;
   }
