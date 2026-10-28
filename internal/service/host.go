@@ -6,13 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"runcradle/internal/engine"
 	pc "runcradle/internal/engine/processcompose"
 	"runcradle/internal/output"
 	"runcradle/internal/runs"
-	"runcradle/internal/workflow"
-	"sort"
 	"sync"
 	"time"
 )
@@ -22,11 +19,6 @@ type Submission struct {
 	RequestID string `json:"request_id"`
 	Revision  string `json:"revision"`
 	Accepted  bool   `json:"accepted"`
-}
-type admission struct {
-	intent  runs.Intent
-	sha     string
-	release func() error
 }
 type activeRun struct {
 	cancel context.CancelCauseFunc
@@ -71,168 +63,86 @@ func (s CancelSignal) SignalNumber() int { return int(s) }
 func (h *Host) StartRun(ctx context.Context, req Request) (Submission, error) {
 	op, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	bad := func(e error) (Submission, error) { return Submission{}, &Error{2, e} }
 	h.mu.Lock()
 	closing := h.closing
 	h.mu.Unlock()
 	if closing {
-		return bad(fmt.Errorf("host is shutting down"))
+		return Submission{}, &Error{2, fmt.Errorf("host is shutting down")}
 	}
 	if op.Err() != nil {
-		return bad(op.Err())
+		return Submission{}, &Error{2, op.Err()}
 	}
-	if req.RequestID == "" || len(req.RequestID) > 128 || req.Timeout < time.Millisecond || req.Timeout > time.Hour || len(req.Targets) == 0 || !req.Document.Valid() {
-		return bad(fmt.Errorf("request_id, valid definition, explicit targets and timeout 1..3600000ms required"))
+	prepared, err := prepareRun(req)
+	if err != nil {
+		return Submission{}, &Error{2, err}
 	}
-	source, e := engine.BindSource(engine.WorkflowSource{Document: req.Document, WorkflowID: req.WorkflowID, Managed: req.Managed})
-	if e != nil {
-		return bad(e)
-	}
-	targets := append([]string(nil), req.Targets...)
-	sort.Strings(targets)
-	names := map[string]bool{}
-	for _, n := range req.Document.View.Nodes {
-		names[n.Name] = true
-	}
-	for i, n := range targets {
-		if !names[n] || i > 0 && targets[i-1] == n {
-			return bad(fmt.Errorf("invalid or duplicate target"))
+	identity, err := h.identifyRun(prepared)
+	if err != nil {
+		if Code(err) == 125 && identity.previous != nil {
+			previous := identity.previous
+			return Submission{RunID: previous.RunID, RequestID: req.RequestID, Revision: previous.Revision}, err
 		}
+		return Submission{}, err
 	}
-	values, e := workflow.ResolveValues(req.Document, req.Preset, req.Values)
-	if e != nil {
-		return bad(e)
+	if identity.previous != nil {
+		return h.replayRun(identity, req.RequestID)
 	}
-	existing, priorErr := h.Store.Request(req.RequestID)
-	sha := ""
-	if priorErr == nil {
-		raw, err := h.Store.Invocation(existing.RunID)
-		if err == nil {
-			var old Invocation
-			if err = json.Unmarshal(raw, &old); err != nil {
-				return bad(err)
-			}
-			sha = old.EngineSHA
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return bad(err)
-		}
-	} else if !errors.Is(priorErr, os.ErrNotExist) {
-		return bad(priorErr)
+	sub, accepted, err := h.admitRun(op, prepared, identity)
+	if err != nil || accepted == nil {
+		return sub, err
 	}
-	if sha == "" {
-		sha, e = fingerprint(h.Binary)
-		if e != nil {
-			if priorErr == nil {
-				return Submission{existing.RunID, req.RequestID, existing.Revision, false}, &Error{125, fmt.Errorf("submission is uncertain; inspect the original request")}
-			}
-			return bad(e)
-		}
-	}
-	record, digest := invocation(req, source, targets, values, sha)
-	if priorErr == nil {
-		if existing.Digest != digest {
-			return Submission{}, &Error{2, runs.ErrConflict}
-		}
-		state, err := h.Store.Load(existing.RunID, time.Now())
-		if err != nil {
-			return Submission{}, &Error{125, err}
-		}
-		sub := Submission{existing.RunID, req.RequestID, existing.Revision, state.Reason != "not_submitted"}
-		if state.Reason == "not_submitted" {
-			return sub, &Error{2, fmt.Errorf("original request was not submitted; use a new request after capacity is available")}
-		}
-		return sub, nil
-	}
-	if _, e = workflow.ApplyValuesContext(op, req.Document, values); e != nil {
-		return bad(e)
-	}
-	if op.Err() != nil {
-		return bad(op.Err())
-	}
-	intent, e := h.Store.Begin(op, req.RequestID, digest, req.Document)
-	if e != nil {
-		return bad(e)
-	}
-	sub := Submission{intent.RunID, req.RequestID, req.Document.Revision, true}
-	if !intent.New {
-		return sub, nil
-	}
-	raw, e := json.Marshal(record)
-	if e == nil {
-		e = h.Store.SaveInvocation(intent.RunID, raw)
-	}
-	if e != nil {
-		return sub, &Error{125, e}
-	}
-	release, e := h.Store.Lease(intent.RunID)
-	state, loadErr := h.Store.Load(intent.RunID, time.Now())
-	if loadErr != nil {
-		if release != nil {
-			release()
-		}
-		return sub, &Error{125, loadErr}
-	}
-	state.WorkflowID, state.WorkspaceID, state.Targets = source.WorkflowID, source.WorkspaceID, targets
-	state.Values, state.EngineSHA256, state.InvocationDigest = values, sha, digest
-	if e != nil {
-		state.Final = true
-		state.Reason = "not_submitted"
-		state.Cleanup = "not_started"
-		now := time.Now().UTC()
-		state.EndedAt = &now
-		sub.Accepted = false
-		saveErr := h.Store.Save(state, false, now)
-		return sub, &Error{2, errors.Join(e, saveErr)}
-	}
-	state.Reason = "accepted"
-	if e = h.Store.Save(state, req.RetainEvidence, time.Now()); e != nil {
-		release()
-		return sub, &Error{125, e}
-	}
-	runCtx, runCancel := context.WithCancelCause(context.Background())
-	active := &activeRun{runCancel, make(chan struct{})}
+	return h.launchRun(sub, *accepted)
+}
+
+func (h *Host) launchRun(sub Submission, accepted acceptedRun) (Submission, error) {
+	// 受理后脱离 HTTP 请求上下文；只有宿主关闭或显式取消才停止此运行。
+	runCtx, cancel := context.WithCancelCause(context.Background())
+	active := &activeRun{cancel: cancel, done: make(chan struct{})}
 	h.mu.Lock()
 	if h.closing {
 		h.mu.Unlock()
-		runCancel(CancelSignal(15))
-		release()
-		state.Final = true
-		state.Reason = "not_submitted"
-		state.Cleanup = "not_started"
+		cancel(CancelSignal(15))
+		accepted.release()
+		state := accepted.initial
+		state.Final, state.Reason, state.Cleanup = true, "not_submitted", "not_started"
 		sub.Accepted = false
 		err := h.Store.Save(state, false, time.Now())
 		return sub, &Error{2, errors.Join(fmt.Errorf("host is shutting down"), err)}
 	}
-	h.active[intent.RunID] = active
-	req.accepted = &admission{intent, sha, release}
-	req.Values = values
-	adapter := h.NewEngine()
+	h.active[accepted.intent.RunID] = active
+	execution := h.NewEngine()
 	h.mu.Unlock()
-	go func() {
-		defer close(active.done)
-		defer runCancel(nil)
-		svc := Service{Engine: adapter, Store: h.Store, Binary: h.Binary}
-		result, err := svc.Run(runCtx, req)
-		if err != nil && !result.Final {
-			latest, loadErr := h.Store.Load(intent.RunID, time.Now())
-			if loadErr == nil {
-				latest.Reason = "owner_interrupted"
-				latest.TaskResult = "unknown"
-				latest.Cleanup = "unknown"
-				latest.OperationError = output.Clean(err.Error(), 512)
-				loadErr = h.Store.Save(latest, req.RetainEvidence, time.Now())
-			}
-			if loadErr != nil {
-				h.mu.Lock()
-				h.workerError = fmt.Errorf("run %s: %s", intent.RunID, output.Clean(errors.Join(err, loadErr).Error(), 512))
-				h.mu.Unlock()
-			}
-		}
-		h.mu.Lock()
-		delete(h.active, intent.RunID)
-		h.mu.Unlock()
-	}()
+	go h.runWorker(runCtx, active, accepted, execution)
 	return sub, nil
+}
+
+func (h *Host) runWorker(ctx context.Context, active *activeRun, accepted acceptedRun, execution engine.Engine) {
+	defer close(active.done)
+	defer active.cancel(nil)
+	executor := runExecutor{engine: execution, store: h.Store}
+	result, err := executor.run(ctx, accepted)
+	if err != nil && !result.Final {
+		h.recordWorkerError(accepted, err)
+	}
+	// 终态可能已经落盘；活动句柄移除之后，worker 才关闭 done。
+	h.mu.Lock()
+	delete(h.active, accepted.intent.RunID)
+	h.mu.Unlock()
+}
+
+func (h *Host) recordWorkerError(accepted acceptedRun, cause error) {
+	runID := accepted.intent.RunID
+	latest, err := h.Store.Load(runID, time.Now())
+	if err == nil {
+		latest.Reason, latest.TaskResult, latest.Cleanup = "owner_interrupted", "unknown", "unknown"
+		latest.OperationError = output.Clean(cause.Error(), 512)
+		err = h.Store.Save(latest, accepted.request.RetainEvidence, time.Now())
+	}
+	if err != nil {
+		h.mu.Lock()
+		h.workerError = fmt.Errorf("run %s: %s", runID, output.Clean(errors.Join(cause, err).Error(), 512))
+		h.mu.Unlock()
+	}
 }
 func (h *Host) InspectRun(id string) (engine.Snapshot, error) { return h.Store.Load(id, time.Now()) }
 func (h *Host) ActiveRuns() int                               { h.mu.Lock(); defer h.mu.Unlock(); return len(h.active) }

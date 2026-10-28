@@ -66,6 +66,8 @@ RunCradle 采用 **Mode A · Wrap** 架构：以固定版本的 **Process Compos
 
 CLI 阅读入口为 `cli.Run`：`runWorkflow` / `stopWorkflow` 连接显式宿主，`inspectWorkflow` 只读离线历史。运行参数由 `runOptions` 保存；提交身份由 `remoteResult` 持有，提交与不确定响应处理、运行观察、显式取消分别组织。先连接宿主再校验运行来源，保留错误优先级；错误结果保留已知 request/run ID 以便恢复查询。
 
+运行服务从 `Host.StartRun` 顺序阅读：`prepareRun` 一次完成来源绑定、目标规范化及参数解析；`identifyRun` / `replayRun` 使用持久身份判断重放；`admitRun` 登记请求并取得槽位；`launchRun` 移交 `acceptedRun` 给私有 `runExecutor`。请求 DTO 不携带隐藏的执行模式。移交前失败由 Host 释放槽位，移交后由执行器的 defer 释放。`runRecorder` 保存事件与快照，启动/停止观察失败由具名处理函数保留各层事实。终态落盘、活动句柄移除、worker done 关闭是有序但独立的三个步骤。
+
 引擎接缝保持最小化，定义为 [`Engine`](../internal/engine/engine.go#L10-L17)：
 
 ```go

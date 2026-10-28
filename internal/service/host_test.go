@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -238,11 +239,15 @@ func TestAcceptedCancellationBeforeWorkerDoesNotLeakLease(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer release()
-	req.accepted = &admission{intent, sha, release}
+	prepared, err := prepareRun(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	accepted := acceptedRun{preparedRun: prepared, intent: intent, engineSHA: sha, invocationDigest: digest, release: release}
 	ctx, cancel := context.WithCancelCause(context.Background())
 	cancel(CancelSignal(15))
-	svc := Service{Engine: h.NewEngine(), Store: h.Store, Binary: "/bin/true"}
-	_, _ = svc.Run(ctx, req)
+	executor := runExecutor{engine: h.NewEngine(), store: h.Store}
+	_, _ = executor.run(ctx, accepted)
 	state, err := h.Store.Load(intent.RunID, time.Now())
 	if err != nil {
 		t.Fatal(err)
@@ -253,5 +258,47 @@ func TestAcceptedCancellationBeforeWorkerDoesNotLeakLease(t *testing.T) {
 	}
 	if active || !state.Final || state.CancellationCode != 143 {
 		t.Fatalf("accepted cancellation lost/lease leaked: active=%v state=%+v", active, state)
+	}
+}
+
+func TestShutdownBetweenAdmissionAndWorkerReleasesSlot(t *testing.T) {
+	h, document, starts, _ := hostFixture(t)
+	request := Request{Document: document, Targets: []string{"a"}, Timeout: time.Second, RequestID: "shutdown-handoff"}
+	prepared, err := prepareRun(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity, err := h.identifyRun(prepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	submission, accepted, err := h.admitRun(context.Background(), prepared, identity)
+	if err != nil || accepted == nil {
+		t.Fatalf("admission: %v", err)
+	}
+	if err = h.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	submission, err = h.launchRun(submission, *accepted)
+	if err == nil || submission.Accepted {
+		t.Fatalf("closed host started worker: %+v %v", submission, err)
+	}
+	state, err := h.InspectRun(submission.RunID)
+	if err != nil || !state.Final || state.Reason != "not_submitted" || state.Cleanup != "not_started" {
+		t.Fatalf("shutdown evidence: %+v %v", state, err)
+	}
+	active, err := h.Store.Active(submission.RunID)
+	if err != nil || active || h.ActiveRuns() != 0 || starts.Load() != 0 {
+		t.Fatalf("ownership leaked: active=%v starts=%d err=%v", active, starts.Load(), err)
+	}
+}
+
+func TestInvocationCanonicalEncodingRemainsStable(t *testing.T) {
+	request := Request{Timeout: time.Second, Preset: "p", RetainEvidence: true}
+	record, digest := invocation(request, engine.WorkflowSource{WorkflowID: "wf", Revision: "rev"}, []string{"a"}, map[string]json.RawMessage{"count": json.RawMessage("7")}, "sha")
+	const expected = `{"workflow_id":"wf","revision":"rev","target_nodes":["a"],"timeout_ms":1000,"engine_binary_sha256":"sha","preset_id":"p","values":{"count":7},"retain_evidence":true}`
+	raw, err := json.Marshal(record)
+	if err != nil || string(raw) != expected || digest != fmt.Sprintf("%x", sha256.Sum256([]byte(expected))) {
+		t.Fatalf("canonical invocation changed: %s %s %v", raw, digest, err)
 	}
 }
