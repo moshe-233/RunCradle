@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="{{.Policy}}" />
+    <title>{{.Title}} · RunCradle</title>
+    <!-- prettier-ignore -->
+    <style>{{.Style}}</style>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="#main" aria-label="RunCradle 工作流"
+        >◈ <span>RunCradle</span></a
+      ><span class="mode">定义预览 · 离线</span>
+    </header>
+    <main id="main">
+      <section class="intro">
+        <div>
+          <p class="eyebrow">WORKFLOW / DECLARATION</p>
+          <h1>{{.Title}}</h1>
+          {{if .Description}}
+          <p class="description">{{.Description}}</p>
+          {{end}}
+        </div>
+        <div class="summary">
+          <strong>{{len .Nodes}} 个节点</strong
+          ><span>{{len .Edges}} 条依赖 · 未执行</span>
+        </div>
+      </section>
+      <div class="notice">
+        <span class="dot"></span>
+        <div>
+          <strong>这是一份工作流定义，还没有执行。</strong
+          ><span
+            >页面只展示文件中的声明。静态检查不代表上游接受或任务成功。</span
+          >
+        </div>
+      </div>
+      <div class="checks">
+        <span>静态检查：通过</span><span>上游检查：未执行</span
+        ><span
+          >声明图：{{if
+          .Complete}}本地声明完整{{else}}部分内容未展开{{end}}</span
+        >{{if .RawEditOnly}}<span>含共享语法节点 · 需原文编辑</span>{{end}}
+      </div>
+      <section class="workspace" aria-label="工作流浏览器">
+        <nav class="steps" aria-label="步骤列表">
+          <div
+            id="offline-search"
+            role="searchbox"
+            contenteditable="true"
+            tabindex="0"
+            aria-label="搜索节点"
+            data-placeholder="搜索节点 /"
+          ></div>
+          <div class="section-title">
+            <h2>步骤</h2>
+            <span>{{len .Nodes}}</span>
+          </div>
+          <ol>
+            {{range .Nodes}}
+            <li>
+              <button class="step" type="button" data-node="{{.ID}}">
+                <span class="step-mark">○</span
+                ><span class="step-text"
+                  ><strong>{{.Label}}</strong><small>{{.Name}}</small></span
+                ><span class="state">未执行</span>
+              </button>
+            </li>
+            {{else}}
+            <li class="empty">暂无节点</li>
+            {{end}}
+          </ol>
+        </nav>
+        <section class="graph-panel" aria-label="声明依赖图">
+          <div class="graph-toolbar">
+            <h2>声明依赖图</h2>
+            <div>
+              <button type="button" id="zoom-out" aria-label="缩小依赖图">
+                −</button
+              ><button type="button" id="zoom-in" aria-label="放大依赖图">
+                ＋</button
+              ><button type="button" id="fit">适应宽度</button>
+            </div>
+          </div>
+          <div class="offline-tools">
+            <button id="offline-up">Upstream</button
+            ><button id="offline-down">Downstream</button
+            ><button id="offline-clear">清除</button
+            ><button id="offline-map-toggle">小地图 M</button
+            ><button id="offline-theme">明暗 T</button
+            ><button id="offline-style">Signal Flow / Blueprint</button>
+          </div>
+          <div id="offline-map" class="minimap" hidden></div>
+          <p class="graph-note">边上的文字是等待条件。选择节点查看声明详情。</p>
+          <div class="canvas diagram" id="canvas">
+            <svg
+              id="graph"
+              role="group"
+              aria-label="工作流声明图"
+              xmlns="http://www.w3.org/2000/svg"
+              width="{{.Width}}"
+              height="{{.Height}}"
+              viewBox="0 0 {{.Width}} {{.Height}}"
+            >
+              <defs>
+                <marker
+                  id="arrow"
+                  viewBox="0 0 10 10"
+                  refX="9"
+                  refY="5"
+                  markerWidth="6"
+                  markerHeight="6"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M 0 0 L 10 5 L 0 10 z" />
+                </marker>
+              </defs>
+              {{range .Edges}}
+              <g class="edge">
+                <title>{{.Condition}}</title>
+                <path d="{{.Path}}" marker-end="url(#arrow)" />
+                <text x="{{.X}}" y="{{.Y}}" text-anchor="middle">
+                  {{.Label}}
+                </text>
+              </g>
+              {{end}}{{range .Nodes}}
+              <g
+                class="node"
+                data-node="{{.ID}}"
+                role="button"
+                tabindex="0"
+                aria-label="查看 {{.Label}}"
+                transform="translate({{.X}},{{.Y}})"
+              >
+                <title>{{.Label}}</title>
+                <rect width="180" height="74" rx="12" />
+                <circle cx="18" cy="24" r="4" />
+                <text x="32" y="29" class="node-label">{{.ShortLabel}}</text>
+                <text x="18" y="55" class="node-state">未执行</text>
+              </g>
+              {{else}}
+              <text x="40" y="80" class="empty-graph">
+                暂无节点 · 仅导入了空声明
+              </text>
+              {{end}}
+            </svg>
+          </div>
+          <p class="graph-footer">配置关系 ≠ 执行时间线 · 可滚动查看完整图</p>
+        </section>
+        <aside class="inspector" aria-label="节点详情">
+          <div class="section-title">
+            <h2>节点详情</h2>
+            <span class="state">只读</span>
+          </div>
+          <div id="node-detail" aria-live="polite">
+            <p class="empty">选择一个节点</p>
+          </div>
+        </aside>
+      </section>
+      {{if .Issues}}
+      <section class="issues">
+        <h2>需要留意的声明</h2>
+        <ul>
+          {{range .Issues}}
+          <li><code>{{.Path}}</code> — {{.Message}}</li>
+          {{end}}
+        </ul>
+      </section>
+      {{end}}
+      <section class="metadata" id="metadata" aria-label="参数与预设">
+        <h2>参数与预设</h2>
+        <p>这里只展示元数据，不会应用参数或修改文件。</p>
+        <div id="input-list"></div>
+      </section>
+      <section class="source">
+        <details>
+          <summary>源文件 · 原始内容</summary>
+          <pre id="native-source">{{.Source}}</pre>
+        </details>
+        {{if .UI}}
+        <details>
+          <summary>ui.json · 原始内容</summary>
+          <pre id="ui-source">{{.UI}}</pre>
+        </details>
+        {{end}}
+      </section>
+      <footer>
+        <div>REVISION <code id="revision">{{.Revision}}</code></div>
+        <div>生成于 {{.Generated}} · 文件可能在导出后变化</div>
+      </footer>
+    </main>
+    <script type="application/json" id="workflow-data">
+      {{.Data}}
+    </script>
+    <!-- prettier-ignore -->
+    <script>{{.Script}}</script>
+  </body>
+</html>

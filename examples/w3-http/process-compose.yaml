@@ -1,0 +1,26 @@
+version: "0.5"
+processes:
+  prepare:
+    entrypoint: [python3, workflow.py, prepare]
+  api:
+    entrypoint: [python3, workflow.py, serve]
+    depends_on:
+      prepare:
+        condition: process_completed_successfully
+    readiness_probe:
+      exec:
+        command: python3 workflow.py ready
+      period_seconds: 1
+      timeout_seconds: 1
+      failure_threshold: 8
+    shutdown:
+      timeout_seconds: 1
+  check:
+    entrypoint: [python3, workflow.py, check]
+    environment: [EXIT_CODE=7, CHECK_LABEL=first attempt]
+    depends_on:
+      api:
+        condition: process_healthy
+    availability:
+      restart: "no"
+      exit_on_end: true

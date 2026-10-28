@@ -1,0 +1,17 @@
+/.git_backup_*/
+/bin/
+/.cache/
+/.work/
+/docs/
+**/.runcradle/
+**/__pycache__/
+/.agents/
+/.aws/
+/.codex/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.swp
+.DS_Store

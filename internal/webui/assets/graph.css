@@ -1,0 +1,149 @@
+.diagram svg {
+  display: block;
+  overflow: visible;
+  font-family: inherit;
+}
+.edge path {
+  fill: none;
+  stroke: var(--muted, #64748b);
+  stroke-width: 1.6;
+}
+.edge rect {
+  fill: var(--surface, #0f172a);
+  stroke: var(--border, #334155);
+}
+.edge text {
+  font-size: 10px;
+  fill: var(--text, #e2e8f0);
+}
+.edge.waiting path {
+  stroke: #fbbf24;
+  stroke-dasharray: 5 5;
+  animation: flow 2s linear infinite;
+}
+.edge.satisfied path {
+  stroke: #34d399;
+  stroke-dasharray: 9 4;
+  animation: flow 1s linear infinite;
+}
+.edge.blocked path {
+  stroke: #fb7185;
+  stroke-dasharray: 3 6;
+}
+.graph-node > rect {
+  fill: var(--surface, #0f172a);
+  stroke: var(--border, #334155);
+  stroke-width: 1.2;
+}
+.graph-node text {
+  fill: var(--text, #e2e8f0);
+  font-size: 11px;
+  pointer-events: none;
+}
+.graph-node .node-title {
+  font-weight: 650;
+  font-size: 13px;
+}
+.graph-node .node-name,
+.graph-node .node-command {
+  font-family: ui-monospace, monospace;
+  fill: var(--muted, #94a3b8);
+  font-size: 10px;
+}
+.graph-node .node-role {
+  fill: var(--muted, #94a3b8);
+  font-size: 9px;
+}
+.graph-node .node-param {
+  fill: #a78bfa;
+  font-size: 9px;
+}
+.graph-node .node-probe,
+.graph-node .node-exit {
+  font-size: 9px;
+}
+.state-dot {
+  fill: #64748b;
+}
+.running .state-dot {
+  fill: #22d3ee;
+}
+.completed .state-dot {
+  fill: #34d399;
+}
+.failed .state-dot {
+  fill: #fb7185;
+}
+.pending .state-dot {
+  fill: #fbbf24;
+}
+.running > rect {
+  stroke: #22d3ee;
+}
+.failed > rect {
+  stroke: #fb7185;
+}
+.selected > rect,
+.graph-node:focus > rect {
+  stroke: #a78bfa;
+  stroke-width: 2;
+}
+.graph-node {
+  cursor: pointer;
+  outline: none;
+}
+.node-quick rect,
+.node-add circle {
+  fill: var(--elevated, #1e293b);
+  stroke: var(--border, #334155);
+}
+.node-quick,
+.node-add {
+  opacity: 0;
+}
+.graph-node:hover .node-quick,
+.graph-node:hover .node-add,
+.graph-node:focus-within .node-quick,
+.graph-node:focus-within .node-add {
+  opacity: 1;
+}
+.dimmed {
+  opacity: 0.2;
+}
+.minimap {
+  position: absolute;
+  bottom: 70px;
+  right: 20px;
+  background: var(--surface, #0f172a);
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+  padding: 8px;
+}
+.minimap rect {
+  fill: #64748b;
+  cursor: pointer;
+}
+.blueprint .diagram {
+  background-color: #082138;
+  background-image:
+    linear-gradient(#17394e 1px, transparent 1px),
+    linear-gradient(90deg, #17394e 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.blueprint .edge path {
+  animation: none;
+}
+.no-motion .edge path {
+  animation: none;
+}
+@keyframes flow {
+  to {
+    stroke-dashoffset: -26;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

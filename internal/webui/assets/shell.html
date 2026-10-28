@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>RunCradle · 工作台</title>
+    <link rel="stylesheet" href="/app.css" />
+    <script src="/graph.js" defer></script>
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <button id="toggle-sidebar" aria-label="折叠资源栏">☰</button
+      ><a class="brand" href="/">◈ RunCradle</a>
+      <div class="workflow-heading">
+        <h1 id="workflow-title">新工作流</h1>
+        <span id="draft-status">未保存</span>
+      </div>
+      <div class="mode-switch">
+        <button id="design-mode" aria-pressed="true">编排设计</button
+        ><button id="monitor-mode" aria-pressed="false">实时监控</button>
+      </div>
+      <div class="top-actions">
+        <button id="open-search" aria-label="搜索与命令">搜索 /</button
+        ><button id="open-source">源码</button
+        ><button id="validate-draft">校验</button
+        ><button id="save-workflow">保存版本</button
+        ><button id="open-launchpad" class="primary">运行</button
+        ><button id="stop-run" disabled>停止</button>
+      </div>
+    </header>
+    <div id="notice" role="status" class="notice" hidden></div>
+    <div class="workspace">
+      <aside id="sidebar">
+        <div class="section-heading">
+          <h2 id="library-title">资源</h2>
+          <button id="new-workflow">+ 新建</button>
+        </div>
+        <div class="tabs">
+          <button id="library-tab" aria-pressed="true">工作流库</button
+          ><button id="history-tab" aria-pressed="false">运行历史</button>
+        </div>
+        <input
+          id="library-filter"
+          aria-label="过滤资源"
+          placeholder="过滤工作流或运行…"
+        />
+        <section id="library-panel">
+          <nav id="workflow-list" aria-label="已保存工作流"></nav>
+          <button id="more-workflows" hidden>更多工作流</button
+          ><button id="open-import" class="wide">导入工作区文件</button>
+        </section>
+        <section id="history-panel" hidden>
+          <div id="run-history"></div>
+          <button id="more-runs" hidden>更多运行</button>
+        </section>
+        <div class="sidebar-footer">
+          <p id="engine-state">检查引擎…</p>
+          <strong id="connection-state" role="status">连接中</strong>
+          <p>本地工作区 · 无模型调用</p>
+        </div>
+      </aside>
+      <main id="workbench-canvas">
+        <div class="canvas-heading">
+          <span id="canvas-mode">配置声明</span><span id="canvas-summary"></span
+          ><button id="add-node">+ 新增节点</button>
+        </div>
+        <div id="run-hud" hidden></div>
+        <div id="editor-graph" class="diagram" aria-label="配置声明图"></div>
+        <div
+          id="run-graph"
+          class="diagram"
+          aria-label="运行版本画布"
+          hidden
+        ></div>
+        <div id="minimap" class="minimap" hidden></div>
+        <div class="canvas-dock">
+          <button id="zoom-out" aria-label="缩小">−</button
+          ><button id="zoom-in" aria-label="放大">+</button
+          ><button id="fit">适应 0</button
+          ><button id="map-toggle">小地图 M</button
+          ><button id="trace-up">Upstream</button
+          ><button id="trace-down">Downstream</button
+          ><button id="trace-clear">清除</button
+          ><select id="visual-style" aria-label="视觉样式">
+            <option value="signal-flow">Signal Flow</option>
+            <option value="blueprint">Blueprint</option></select
+          ><button id="theme-toggle">明暗 T</button>
+        </div>
+      </main>
+      <aside id="inspector" class="editor drawer" hidden>
+        <div class="section-heading">
+          <div>
+            <h2 id="inspector-title">节点</h2>
+            <span id="inspector-id" class="muted"></span>
+          </div>
+          <button id="close-inspector" aria-label="关闭节点检查器">×</button>
+        </div>
+        <div class="tabs">
+          <button id="config-tab" aria-pressed="true">配置编辑</button
+          ><button id="facts-tab" aria-pressed="false">运行事实</button>
+        </div>
+        <div id="node-config">
+          <p id="raw-only" class="alert" hidden>
+            共享 YAML 或非标准字段形态，请使用源码编辑。
+          </p>
+          <fieldset id="node-fields">
+            <label>节点键名<input id="node-name" /></label
+            ><label>显示名称<input id="node-label" /></label
+            ><button id="rename-node">应用名称与标签</button
+            ><label
+              >执行方式<select id="command-mode">
+                <option value="command">Shell 命令</option>
+                <option value="entrypoint">参数数组</option>
+              </select></label
+            ><label id="command-label"
+              >命令<textarea
+                id="node-command"
+                rows="3"
+                spellcheck="false"
+              ></textarea>
+            </label>
+            <div id="entrypoint-editor" hidden>
+              <span>参数列表</span>
+              <div id="entrypoint-rows"></div>
+              <button id="add-argument">+ 参数</button>
+            </div>
+            <label
+              >工作目录<input id="node-working-dir" placeholder="工作区根目录"
+            /></label>
+            <div class="section-heading">
+              <h3>环境变量</h3>
+              <button id="add-env">+ 变量</button>
+            </div>
+            <div id="env-rows"></div>
+            <div class="section-heading">
+              <h3>前置依赖</h3>
+              <button id="add-dependency">+ 依赖</button>
+            </div>
+            <div id="dependency-rows"></div>
+            <label
+              >重启策略<select id="node-restart">
+                <option value="no">no</option>
+                <option value="exit_on_failure">exit_on_failure</option>
+              </select></label
+            ><label class="check"
+              ><input id="node-exit-end" type="checkbox" />结束时退出</label
+            ><label class="check"
+              ><input id="node-exit-skipped" type="checkbox" />跳过时退出</label
+            >
+            <div class="actions">
+              <button id="apply-node" class="primary">应用节点配置</button
+              ><button id="node-run">运行到此节点</button>
+            </div>
+            <button id="delete-node" class="danger">删除节点及其引用</button>
+          </fieldset>
+        </div>
+        <div id="node-facts" hidden></div>
+      </aside>
+    </div>
+    <section id="evidence-console">
+      <button id="toggle-console" class="console-summary">
+        <span>运行证据</span><span id="run-status">未执行</span
+        ><span>历史 <b id="run-integrity">未知</b></span
+        ><span>清理 <b id="run-cleanup">未知</b></span
+        ><span id="stream-state"></span><span>⌃</span>
+      </button>
+      <div id="console-body" hidden>
+        <div class="identity">
+          <span>Run <code id="run-id"></code></span
+          ><span>Revision <code id="run-revision"></code></span>
+        </div>
+        <p id="run-empty">选择历史或运行一个已保存版本。</p>
+        <dl id="run-facts">
+          <dt>引擎退出</dt>
+          <dd id="run-engine">未知</dd>
+          <dt>清理范围</dt>
+          <dd id="run-scope">未知</dd>
+          <dt>输出完整性</dt>
+          <dd id="run-io">未知</dd>
+          <dt>原因</dt>
+          <dd id="run-reason">未执行</dd>
+        </dl>
+        <label>事件节点过滤<input id="event-filter" /></label>
+        <ol id="timeline"></ol>
+        <div id="run-nodes"></div>
+        <details>
+          <summary>实例参数与运行原文</summary>
+          <pre id="run-values"></pre>
+          <pre id="run-source"></pre>
+        </details>
+      </div>
+    </section>
+    <dialog id="source-dialog" class="wide-dialog editor">
+      <div class="section-heading">
+        <h2>原生配置与 UI 元数据</h2>
+        <button data-close="source-dialog" aria-label="关闭源码">×</button>
+      </div>
+      <div class="identity">
+        <span>工作流 <code id="workflow-id"></code></span
+        ><span>版本 <code id="saved-revision"></code></span>
+      </div>
+      <div class="actions">
+        <select id="source-format" aria-label="原生格式">
+          <option value="yaml">YAML</option>
+          <option value="json">JSON</option></select
+        ><select id="version-select" aria-label="选择保存版本" disabled></select
+        ><button id="copy-workflow" disabled>复制工作流</button
+        ><button id="export-workflow" disabled>导出配置 ZIP</button
+        ><button id="reimport-workspace" disabled>
+          重新读取导入文件并比较
+        </button>
+      </div>
+      <p id="execution-note"></p>
+      <ul id="issues" aria-label="校验问题"></ul>
+      <div class="source-columns">
+        <label
+          >Process Compose 原生配置
+          <div class="code-editor">
+            <pre id="native-lines" aria-hidden="true"></pre>
+            <textarea
+              id="native-source"
+              rows="20"
+              spellcheck="false"
+            ></textarea></div></label
+        ><label
+          >ui.json（可选）
+          <div class="code-editor">
+            <pre id="ui-lines" aria-hidden="true"></pre>
+            <textarea
+              id="ui-source"
+              rows="20"
+              spellcheck="false"
+            ></textarea></div
+        ></label>
+      </div>
+      <button id="source-apply">校验并返回画布</button>
+      <details class="legacy-editor">
+        <summary>兼容单字段编辑</summary>
+        <select id="edit-node"></select
+        ><select id="edit-field">
+          <option value="command">command</option>
+          <option value="entrypoint">entrypoint</option>
+          <option value="working_dir">working_dir</option>
+          <option value="environment">environment</option>
+          <option value="depends_on">depends_on</option></select
+        ><textarea id="field-value"></textarea
+        ><button id="apply-field">应用到草稿</button
+        ><button id="remove-field">删除该字段</button>
+        <div id="step-list"></div>
+        <pre id="declaration-detail"></pre>
+      </details>
+    </dialog>
+    <dialog id="launchpad" class="editor">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">RUN WORKFLOW</span>
+          <h2>运行启动台</h2>
+        </div>
+        <button data-close="launchpad" aria-label="关闭运行启动台">×</button>
+      </div>
+      <p>运行已保存版本，参数只作用于本次执行副本。</p>
+      <label
+        >预设<select id="preset-select">
+          <option value="">默认值</option>
+        </select></label
+      >
+      <div id="preset-cards" class="preset-cards"></div>
+      <pre id="preset-values" hidden></pre>
+      <div id="parameter-inputs"></div>
+      <div class="actions">
+        <input
+          id="preset-name"
+          aria-label="新预设名称"
+          placeholder="预设名称"
+        /><button id="save-preset">另存为预设</button
+        ><button id="delete-preset">删除选中预设</button>
+      </div>
+      <label
+        >目标节点（多选）<select
+          id="run-targets"
+          multiple
+          size="3"
+        ></select></label
+      ><label
+        >时限（毫秒）<input
+          id="timeout-ms"
+          inputmode="numeric"
+          value="300000" /></label
+      ><label class="check"
+        ><input id="retain-evidence" type="checkbox" />保留失败线索（7
+        天）</label
+      >
+      <p id="launch-note"></p>
+      <button id="start-run" class="primary wide" disabled>运行此版本</button>
+    </dialog>
+    <dialog id="file-picker">
+      <div class="section-heading">
+        <h2>导入工作区文件</h2>
+        <button data-close="file-picker" aria-label="关闭文件选择器">×</button>
+      </div>
+      <input
+        id="file-search"
+        aria-label="搜索配置文件"
+        placeholder="搜索 YAML / JSON…"
+      />
+      <p id="file-budget"></p>
+      <div id="file-results"></div>
+      <label
+        >原生文件<input
+          id="import-file-path"
+          placeholder="process-compose.yaml" /></label
+      ><label
+        >界面描述（可选）<input
+          id="import-ui-path"
+          list="ui-file-options"
+          placeholder="ui.json" /></label
+      ><datalist id="ui-file-options"></datalist
+      ><button id="import-workspace" class="primary">读取并预览</button>
+      <div id="drop-zone">
+        <label
+          >拖入或选择原生文件<input
+            id="upload-native"
+            type="file"
+            accept=".yaml,.yml,.json" /></label
+        ><label
+          >选择 ui.json<input id="upload-ui" type="file" accept=".json"
+        /></label>
+      </div>
+    </dialog>
+    <dialog id="diff-dialog" class="wide-dialog">
+      <div class="section-heading">
+        <h2 id="diff-title">版本对比</h2>
+        <button data-close="diff-dialog" aria-label="关闭版本对比">×</button>
+      </div>
+      <div id="diff-columns" class="source-columns"></div>
+      <div id="conflict" hidden>
+        <h3>版本冲突 · 草稿仍保留</h3>
+        <pre id="conflict-source" hidden></pre>
+        <button id="reload-latest">放弃当前草稿并读取最新版本</button>
+      </div>
+      <div id="reimport-preview" hidden>
+        <h3>重新导入预览 · 尚未改变草稿</h3>
+        <pre id="reimport-old" hidden></pre>
+        <pre id="reimport-new" hidden></pre>
+        <button id="apply-reimport">将预览应用到当前工作流草稿</button
+        ><button id="dismiss-reimport">取消预览</button>
+      </div>
+    </dialog>
+    <dialog id="search-dialog">
+      <div class="section-heading">
+        <h2>搜索与命令</h2>
+        <button data-close="search-dialog" aria-label="关闭搜索">×</button>
+      </div>
+      <input
+        id="global-search"
+        aria-label="搜索节点或命令"
+        placeholder="节点、命令、环境变量、工作流…"
+      />
+      <div id="search-results"></div>
+    </dialog>
+    <dialog id="bind-dialog">
+      <div class="section-heading">
+        <h2>暴露为运行参数</h2>
+        <button data-close="bind-dialog" aria-label="关闭参数绑定">×</button>
+      </div>
+      <label>参数名<input id="bind-name" /></label
+      ><label
+        >类型<select id="bind-type">
+          <option value="string">string</option>
+          <option value="integer">integer</option>
+          <option value="boolean">boolean</option>
+        </select></label
+      ><label>默认值<input id="bind-default" /></label
+      ><label
+        >可选值（每行一个，可留空）<textarea
+          id="bind-enum"
+          rows="3"
+        ></textarea></label
+      ><button id="confirm-bind" class="primary">创建参数绑定</button>
+    </dialog>
+    <dialog id="add-dialog">
+      <div class="section-heading">
+        <h2>新增节点</h2>
+        <button data-close="add-dialog" aria-label="关闭新增节点">×</button>
+      </div>
+      <label>节点键名<input id="add-name" placeholder="new_step" /></label>
+      <p id="add-upstream"></p>
+      <button id="confirm-add" class="primary">创建节点</button>
+    </dialog>
+  </body>
+</html>

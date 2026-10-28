@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "title": "HTTP 检查与复用",
+  "inputs": [
+    {
+      "name": "exit_code",
+      "label": "检查退出码",
+      "type": "integer",
+      "default": 7,
+      "enum": [0, 7, 8],
+      "bindings": [{"process": "check", "field": "environment", "key": "EXIT_CODE"}]
+    },
+    {
+      "name": "label",
+      "label": "本次说明",
+      "type": "string",
+      "default": "first attempt",
+      "bindings": [{"process": "check", "field": "environment", "key": "CHECK_LABEL"}]
+    }
+  ],
+  "presets": [
+    {"id": "success", "label": "成功运行", "values": {"exit_code": 0, "label": "reuse"}},
+    {"id": "failure8", "label": "实际退出 8", "values": {"exit_code": 8}}
+  ]
+}

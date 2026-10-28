@@ -1,0 +1,23 @@
+version: "0.5"
+processes:
+  prepare:
+    entrypoint: ["python3", "-c", "print('准备完成')"]
+  api:
+    entrypoint: ["python3", "-m", "http.server", "8080", "--bind", "127.0.0.1"]
+    depends_on:
+      prepare:
+        condition: "process_completed_successfully"
+    readiness_probe:
+      http_get:
+        scheme: "http"
+        host: "127.0.0.1"
+        port: "8080"
+        path: "/"
+  check:
+    entrypoint: ["python3", "-c", "import urllib.request; assert urllib.request.urlopen('http://127.0.0.1:8080').status == 200; print('HTTP 检查通过')"]
+    depends_on:
+      api:
+        condition: "process_healthy"
+    availability:
+      restart: "no"
+      exit_on_end: true

@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "title": "HTTP 契约检查",
+  "description": "准备环境、声明临时 HTTP 服务，再检查响应。当前页面仅预览配置，不会运行这些步骤。",
+  "nodes": {
+    "prepare": {
+      "label": "准备环境"
+    },
+    "api": {
+      "label": "临时 API"
+    },
+    "check": {
+      "label": "接口检查"
+    }
+  },
+  "inputs": [
+    {
+      "name": "test_scope",
+      "label": "测试范围",
+      "type": "string",
+      "default": "smoke",
+      "enum": [
+        "smoke",
+        "all"
+      ],
+      "bindings": [
+        {
+          "process": "check",
+          "field": "environment",
+          "key": "TEST_SCOPE"
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "id": "smoke",
+      "label": "快速检查",
+      "values": {
+        "test_scope": "smoke"
+      }
+    }
+  ]
+}
