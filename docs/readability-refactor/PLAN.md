@@ -31,11 +31,11 @@
 
 ## Task 4: 文档与交付验证
 
-- [ ] 注释解释原因、前置条件、所有权与非直观时序，不复述语法。
-- [ ] 更新 ARCHITECTURE/DEVELOPMENT 与本轮验证记录，不改写历史证据。
-- [ ] 最低 Go 1.26.0 与日常 Go 分别运行 `make verify web-test package-unit-test`。
-- [ ] 构建真实候选目录包并执行 package-test；检查包内在线模块与离线导出。
-- [ ] 最终独立审查、必要修正与验证；保存截图和证据。不自动合并、推送或发布。
+- [x] 注释解释原因、前置条件、所有权与非直观时序，不复述语法。
+- [x] 更新 ARCHITECTURE/DEVELOPMENT 与本轮验证记录，不改写历史证据。
+- [x] 最低 Go 1.26.0 与日常 Go 分别运行 `make verify web-test package-unit-test`。
+- [x] 构建真实候选目录包并执行 package-test；检查包内在线模块与离线导出。
+- [x] 最终独立审查、必要修正与验证；保存截图和证据。不自动合并、推送或发布。
 
 ## 验收重点
 
