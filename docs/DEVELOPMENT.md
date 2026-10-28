@@ -97,3 +97,35 @@ RUNCRADLE_BUNDLE_ARCHIVE="$PWD/.work/dist/runcradle-0.1.0-dev-linux-amd64.tar.gz
 制包使用本地工具链，并强制 `GONOPROXY=none`、`GOVCS=*:off` 和 `GOPROXY=off`，覆盖用户私有模块的直连设置，禁用 Go 模块/工具链联网下载，固定 Linux amd64、CGO 关闭和 readonly 模块模式；缺少缓存时失败。默认拒绝 dirty 和覆盖同名产物，本地开发候选可显式使用 `PACKAGE_FLAGS='--allow-dirty --out .work/dist-candidate'`，清单会记录 `source_dirty=true`。`GO=/absolute/go/bin/go` 可选择构建工具链；完整最低版本验证还需将该工具链的 `bin` 放在 PATH 首位。
 
 归档测试从真实 `.tar.gz` 解压，核对全文件 SHA、权限、许可证，并在不含系统 Process Compose 的 PATH 下验证 B-01—B-10。设置 `RUNCRADLE_BUNDLE_TEST=1` 而缺少归档路径会直接失败。实施与证据见 [P1 记录](bundled-engine/IMPLEMENTATION.md)。
+
+## 5. 接管代码时的三条阅读路径
+
+可读性重构计划与本轮证据见 [计划](readability-refactor/PLAN.md) / [验证记录](readability-refactor/VALIDATION.md)。先从一个实际行为追踪代码，不需要按目录逐文件阅读。
+
+| 要理解的行为 | 顺序阅读 | 关键验证 |
+| --- | --- | --- |
+| 提交运行到结束 | `cli.Run` → `runWorkflow` → HTTP runs 路由 → `Host.StartRun` → `prepareRun` / `identifyRun` / `admitRun` → `launchRun` / `runExecutor.run` → `runRecorder` | `TestHostAcceptedRequestSurvivesDisconnectAndDeduplicates`、`TestShutdownBetweenAdmissionAndWorkerReleasesSlot`、真实 `TestW3HTTPSubmissionRetrySSEAndOfflineHistory` |
+| 编辑到保存冲突 | 在线 `shell.js` → editor 的 `draft` / `renderDocument` / `save` → HTTP workflows 路由 → `Store.SaveWorkflow` | `TestAPILibraryDraftCASAndExport`；`make web-test` 中保存、冲突、草稿保留与版本隔离 |
+| 页面观察到释放资源 | runs 的 `openRun` → 快照与独立运行定义 → SSE / `refreshRun` → `closeStream`；显式停止另走 stop API | `TestActualServeOwnsDisconnectedRunAndStopsOnlyItsInstance`、`TestSSEFinalDrainsTailPublishedDuringEventFlush`；前端关闭/切换检查器、单次事件提交 |
+
+### 阅读时要分开的事实
+
+- `Request` 是调用输入，`preparedRun` 是规范化结果，`acceptedRun` 才持有登记身份与槽位释放责任；不要再增加隐藏的“是否已经准备”标志来切换执行模式。
+- `Host` 管受理、幂等和活动句柄；执行器管该次运行；Process Compose 管调度；`nodeexec` 管直接子进程回执。终态先落盘，worker 随后释放活动句柄，最终关闭 done。
+- editor 状态是可变草稿/保存版本，runs 状态是当次运行定义/事实。改草稿不改变正在运行的 revision；关闭 SSE 不等于停止任务。
+- inspector 缓存未应用输入，关闭或切换节点不清除；显式丢弃、应用到草稿和保存版本是三个不同动作。
+
+### 修改后的最小检查入口
+
+单元测试由 `make unit-test` 统一设置缓存目录。需要定向执行时可沿用以下环境，避免测试产物进入根目录：
+
+```bash
+mkdir -p .work/tmp
+GOCACHE="$PWD/.cache/go-build" GOPATH="$PWD/.cache/go" \
+GOMODCACHE="$PWD/.cache/go-mod" TMPDIR="$PWD/.work/tmp" \
+go test ./internal/cli ./internal/service ./internal/httpapi ./internal/webui -count=1
+```
+
+触及生命周期时增加 `-race` 并执行 `make integration-test`；触及前端时执行 `make web-test`。交付仍按本页双工具链完整验证及真实归档验收，不以定向测试代替。
+
+新增阅读注释使用精简中文，说明原因、所有权或非直观时序；已有准确英文说明保留。函数命名和具名类型应先表达意图，不用逐行注释弥补含糊流程。

@@ -7,6 +7,8 @@
 
 ## 当前新增验证
 
+2026-10-28 可读性重构的分阶段源码、双工具链验证及界面比较见 [验证记录](readability-refactor/VALIDATION.md)，范围见 [实施计划](readability-refactor/PLAN.md)。本轮不新增 agent 能力或用户本人验收记录。
+
 **W3.5 用户人工验收已完成**：用户于 2026-10-28 在当前对话明确确认，结论与原话见[人工验收记录](design/webui-style/IMPLEMENTATION.md)。未补写用户未提供的逐项场景或验收提交号。
 
 P1 随包内核的本地归档验收、双工具链结果和候选包身份见 [验证记录](bundled-engine/VALIDATION.md)，实施进度见 [实施记录](bundled-engine/IMPLEMENTATION.md)。当前验证独立于下列历史报告，不改写其字节。

@@ -67,4 +67,6 @@
 
 ## 2026-10-28 前端实施补充
 
+可读性重构已按 CLI → 运行服务 → 在线原生模块实施，接管阅读路径见 [开发指南](DEVELOPMENT.md#5-接管代码时的三条阅读路径)，范围和验证见 [本轮记录](readability-refactor/VALIDATION.md)。这不改变 W4/W5 开放状态；agent 接入尚未实施。双工具链、归档与审查结果以该独立验证记录为准。
+
 用户已要求开始前端重构；现行视觉与交互以 [设计草案](design/webui-style/DESIGN.md) 为准，工程进度与当前源码验证见 [实施计划](design/webui-style/IMPLEMENTATION.md)。蓝色/青绿色均保留明暗模式，连线默认静态，检查器关闭保留未应用输入。该前端轮次未推进 P1/P2；本次在 `codex/bundled-engine` 承接 P1，P2 仍暂停。W3.5 人工验收由用户于 2026-10-28 明确确认完成，见[记录](design/webui-style/IMPLEMENTATION.md)；此状态依据用户确认单独更新。
