@@ -54,6 +54,7 @@ prepare-web-test: | workspace-dirs
 web-test: build
 	node tests/web/workbench-graph-test.cjs
 	node tests/web/frontend-test.cjs
+	node tests/web/lifecycle-test.cjs
 	node tests/web/web-test.cjs
 
 verify: check-tree fmt-check vet test race deps build

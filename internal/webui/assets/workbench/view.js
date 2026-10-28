@@ -442,7 +442,10 @@ export function createView({
         $(keys[e.key]).click();
       }
     });
-    window.addEventListener("pagehide", () => canvasResize.disconnect());
+    window.addEventListener("pagehide", (event) => {
+      // BFCache 会保留当前文档，返回时不重新初始化；此时继续保留尺寸观察器。
+      if (!event.persisted) canvasResize.disconnect();
+    });
   }
   return {
     closeDialog,
