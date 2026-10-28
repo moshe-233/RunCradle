@@ -118,6 +118,20 @@ type Engine interface {
 
 现行视觉与交互以 [2026-10-28 设计草案](design/webui-style/DESIGN.md) 为准；主题实现与离线导出共用 `theme.css` / `theme.js`，不依赖外部资源。原生执行与存储契约不随视觉重构改变。
 
+### 在线前端阅读入口
+
+`assets/shell.js` 是原生 ES Modules 启动入口：创建四组状态（editor/runs/inspector/view），显式注入具名回调，模块就绪后各绑定一次事件。各模块只取得自己可修改的状态；跨模块通过只读视图与操作方法协作，不共享可任意写入的全局状态。
+
+| 模块 | 阅读职责 |
+| --- | --- |
+| `workbench/state.js`、`api.js` | 完整初始状态；请求/错误封装与连接通知 |
+| `workbench/editor.js` | 来源原文、草稿、保存版本、CAS 冲突、库列表及参数精确编码 |
+| `workbench/runs.js` | 提交、历史、不可变运行定义、SSE、刷新/计时器与显式停止 |
+| `workbench/inspector.js` | 选择节点、未应用输入、丢弃、表单与参数绑定 |
+| `workbench/view.js` | 画布、弹窗、搜索、焦点和编辑忙碌保护 |
+
+在线 `/app.js` 和模块路由由白名单提供，继续采用同源 CSP。离线 `Render` 使用 `assets/app.js` / `index.html` 等独立内嵌资源，不加载在线模块，也不取得宿主权限。关闭 SSE 或页面仅释放观察资源，不停止宿主持有的任务。
+
 ## 随包内核与构建身份
 
 `internal/buildinfo` 通过发行构建注入 Version、Commit 与 Distribution；源码默认为 `source`，目录包为 `bundle`。`internal/processcompose/pinned.json` 统一官方版本、来源和归档/二进制指纹，准备脚本与离线制包脚本读取同一文件。

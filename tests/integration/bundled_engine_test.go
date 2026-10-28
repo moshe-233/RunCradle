@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -217,6 +218,20 @@ func bundleHost(t *testing.T, binary, workspace string, env []string) func() {
 		t.Fatalf("bundle host did not become ready: %v", err)
 	}
 	go io.Copy(io.Discard, pipe)
+	// 从真实归档启动后检查模块路由，防止源码页面可用但发行包遗漏资源。
+	client := &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{}}
+	defer client.CloseIdleConnections()
+	for _, asset := range []string{"/app.js", "/workbench/state.js", "/workbench/api.js", "/workbench/editor.js", "/workbench/runs.js", "/workbench/inspector.js", "/workbench/view.js"} {
+		response, requestErr := client.Get(ready.URL + asset)
+		if requestErr != nil {
+			t.Fatal(requestErr)
+		}
+		raw, readErr := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+		response.Body.Close()
+		if readErr != nil || response.StatusCode != 200 || len(raw) == 0 || response.Header.Get("Content-Type") != "application/javascript; charset=utf-8" {
+			t.Fatalf("bundle module %s: status=%d err=%v", asset, response.StatusCode, readErr)
+		}
+	}
 	return stop
 }
 func bundleWorkspace(t *testing.T, root string) string {

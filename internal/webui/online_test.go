@@ -34,3 +34,20 @@ func TestWorkbenchShellSurfaces(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkbenchModulesHaveExplicitSameOriginRoutes(t *testing.T) {
+	for _, name := range []string{"state", "api", "editor", "runs", "inspector", "view"} {
+		response := httptest.NewRecorder()
+		Handler().ServeHTTP(response, httptest.NewRequest("GET", "/workbench/"+name+".js", nil))
+		if response.Code != 200 || response.Body.Len() == 0 || response.Header().Get("Content-Type") != "application/javascript; charset=utf-8" {
+			t.Errorf("module %s: status=%d MIME=%q", name, response.Code, response.Header().Get("Content-Type"))
+		}
+	}
+	for _, path := range []string{"/workbench/unknown.js", "/workbench/../style.css", "/workbench/../../go.mod"} {
+		response := httptest.NewRecorder()
+		Handler().ServeHTTP(response, httptest.NewRequest("GET", path, nil))
+		if response.Code != 404 {
+			t.Errorf("unregistered asset exposed: %s", path)
+		}
+	}
+}

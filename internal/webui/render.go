@@ -51,6 +51,7 @@ type pageData struct {
 }
 
 func Render(d workflow.Document, at time.Time) ([]byte, error) {
+	// 离线导出内嵌独立资源，不能引用在线 ES Modules 或携带宿主权限。
 	if !d.Valid() {
 		return nil, fmt.Errorf("cannot render an invalid document")
 	}

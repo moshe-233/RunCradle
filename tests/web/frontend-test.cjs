@@ -197,10 +197,18 @@ async function main() {
       );
       await page.locator("#node-command").fill("echo applied");
       await page.locator("#node-label").fill("新的构建");
+      let applyRequests = 0;
+      const countApply = (request) => {
+        if (request.method() === "POST" && request.url().endsWith("/api/v1/validate"))
+          applyRequests++;
+      };
+      page.on("request", countApply);
       await page.locator("#apply-node").click();
       await page.waitForFunction(() =>
         document.querySelector("#native-source").value.includes("echo applied"),
       );
+      page.off("request", countApply);
+      assert.equal(applyRequests, 1, "one click applies one edit; handlers are not duplicated");
       assert.equal(
         await page.locator("#node-label").inputValue(),
         "新的构建",

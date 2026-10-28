@@ -14,6 +14,9 @@ func Handler() http.Handler {
 			name, mime = "shell.js", "application/javascript; charset=utf-8"
 		case "/graph.js":
 			name, mime = "graph.js", "application/javascript; charset=utf-8"
+		case "/workbench/state.js", "/workbench/api.js", "/workbench/editor.js", "/workbench/runs.js", "/workbench/inspector.js", "/workbench/view.js":
+			// 只开放在线模块白名单；离线导出继续内嵌自己的独立脚本。
+			name, mime = r.URL.Path[1:], "application/javascript; charset=utf-8"
 		case "/theme.js":
 			name, mime = "theme.js", "application/javascript; charset=utf-8"
 		case "/app.css":
