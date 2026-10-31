@@ -92,6 +92,34 @@ mkdir -p ./.work
 
 ---
 
+## 独立接入层的公共入口
+
+本仓库提供 CLI JSON、loopback HTTP/JSON 与 SSE 契约。各 Agent 的插件、MCP 转换和安装配置可以在独立仓库实现；无需导入 Go `internal` 包或直接修改 `.runcradle/` 数据。
+
+```bash
+# 离线查看协议版本、能力与预算；导出随二进制携带的 OpenAPI 3.1.1
+./.work/bin/runcradle api describe
+./.work/bin/runcradle api schema --workspace . --out .work/runcradle-openapi.json
+
+# 检查显式启动的工作区宿主（只显示连接信息与凭据文件位置，不显示 Token）
+./.work/bin/runcradle api status --workspace examples/w3-http
+
+# 调用完整 HTTP 能力；--out 必须是工作区内的新文件
+./.work/bin/runcradle api request --workspace examples/w3-http \
+  --path '/api/v1/workflows?limit=10' --out workflows-response.json
+
+# 非阻塞提交：exit 0 仅表示受理；用固定 request-id 查询和恢复
+./.work/bin/runcradle workflow run --workspace examples/w3-http \
+  --file process-compose.yaml --ui ui.json --target check --preset success \
+  --request-id adapter-first-run --detach
+```
+
+`api request` 支持 `GET`、`POST`、`PUT`；写操作通过 `--input` 读取工作区内 JSON 文件，完整响应写到 `--out`，标准输出只返回不超过 4 KiB 的 JSON 回执。请求失败时保留 HTTP 状态、稳定 `code`、已知运行身份与 `next_action`；不会自动重试写操作。实时事件由接入层直接消费 SSE，CLI 可使用同一事件入口分页查询。
+
+在线协议说明为 `GET /api/v1/protocol` 与 `GET /api/v1/openapi.json`，沿用本地 Bearer 鉴权。详细使用与兼容策略见本地 [公共协议与接入边界](docs/INTEGRATION_API.md)。
+
+---
+
 ## 文档导航
 
 集成测试与浏览器自动化测试分别位于 `tests/integration/`、`tests/web/`。

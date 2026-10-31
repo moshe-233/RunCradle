@@ -18,6 +18,11 @@ const help = `RunCradle — 把工作流变成可操作的界面。
 Usage:
   runcradle help
   runcradle version
+  runcradle api describe
+  runcradle api schema --workspace DIR --out FILE
+  runcradle api status --workspace DIR
+  runcradle api request --workspace DIR --path /api/v1/RESOURCE --out FILE
+                       [--method GET|POST|PUT] [--input JSON_FILE] [--timeout-ms N]
   runcradle workflow validate --workspace DIR --file FILE [--ui FILE]
                               [--check-engine] [--process-compose PATH]
 
@@ -28,12 +33,14 @@ Usage:
                          (--file FILE [--ui FILE] | --workflow-id ID --revision REV)
                          --target NAME [--target NAME ...]
                          [--preset ID] [--values FILE] [--timeout-ms N] [--request-id ID]
-                         [--retain-evidence]
+                         [--retain-evidence] [--detach --request-id ID]
   runcradle workflow stop --workspace DIR --run-id ID
   runcradle workflow inspect --workspace DIR (--run-id ID | --request-id ID)
                              [--node NAME | --events-after SEQ | --nodes-after N] [--limit N]
 
 Validate/render/inspect work offline. Run/stop connect to an explicit workspace host.
+API requests save complete responses to new files; stdout is a bounded JSON receipt.
+Detached run exit 0 confirms host acceptance only. Use inspect/events for task facts.
 Serve provides local browser editing, immutable library revisions and bounded task runs.
 Import sources remain unchanged; save writes the private library and export is explicit.
 Engine selection belongs to serve. Old v2 policies need explicit migration.
@@ -50,6 +57,9 @@ func CancellationCode(ctx context.Context) int {
 	return 130
 }
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "api" {
+		return apiCommandRun(ctx, args[1:], stdout, stderr)
+	}
 	if len(args) > 0 && args[0] == "serve" {
 		return serve(ctx, args[1:], stdout, stderr)
 	}

@@ -108,7 +108,7 @@ func (s *Store) write(name string, value any) error {
 	}
 	return errors.Join(d.Sync(), d.Close())
 }
-func (s *Store) lock(ctx context.Context, name string) (func() error, error) {
+func (s *Store) openLock(name string) (*os.File, error) {
 	f, e := s.root.OpenFile(name, os.O_CREATE|os.O_RDWR|unix.O_NONBLOCK|unix.O_NOFOLLOW, 0600)
 	if e != nil {
 		return nil, e
@@ -117,6 +117,33 @@ func (s *Store) lock(ctx context.Context, name string) (func() error, error) {
 	if e != nil || !st.Mode().IsRegular() || st.Mode().Perm() != 0600 {
 		f.Close()
 		return nil, fmt.Errorf("invalid private lock")
+	}
+	return f, nil
+}
+
+var ErrBusy = errors.New("private lock is already held")
+
+// tryLock performs exactly one nonblocking flock. A 1ms context deadline also
+// measures scheduling and directory IO, and can reject a completely free slot.
+func (s *Store) tryLock(name string) (func() error, error) {
+	f, err := s.openLock(name)
+	if err != nil {
+		return nil, err
+	}
+	err = unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)
+	if err != nil {
+		if errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN) {
+			err = ErrBusy
+		}
+		return nil, errors.Join(err, f.Close())
+	}
+	return func() error { return errors.Join(unix.Flock(int(f.Fd()), unix.LOCK_UN), f.Close()) }, nil
+}
+
+func (s *Store) lock(ctx context.Context, name string) (func() error, error) {
+	f, e := s.openLock(name)
+	if e != nil {
+		return nil, e
 	}
 	for {
 		if e = ctx.Err(); e != nil {

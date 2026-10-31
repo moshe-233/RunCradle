@@ -9,17 +9,13 @@ import (
 	"runcradle/internal/engine"
 	pc "runcradle/internal/engine/processcompose"
 	"runcradle/internal/output"
+	"runcradle/internal/protocol"
 	"runcradle/internal/runs"
 	"sync"
 	"time"
 )
 
-type Submission struct {
-	RunID     string `json:"run_id"`
-	RequestID string `json:"request_id"`
-	Revision  string `json:"revision"`
-	Accepted  bool   `json:"accepted"`
-}
+type Submission = protocol.Submission
 type activeRun struct {
 	cancel context.CancelCauseFunc
 	done   chan struct{}

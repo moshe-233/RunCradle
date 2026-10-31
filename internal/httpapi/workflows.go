@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	pc "runcradle/internal/engine/processcompose"
+	"runcradle/internal/protocol"
 	"runcradle/internal/runs"
 	"runcradle/internal/webui"
 	"runcradle/internal/workflow"
@@ -14,18 +15,16 @@ import (
 	"time"
 )
 
-type Draft struct {
-	Format   string  `json:"format"`
-	Source   string  `json:"source"`
-	UISource *string `json:"ui_source,omitempty"`
-	Entry    string  `json:"entry,omitempty"`
-	UIPath   string  `json:"ui_path,omitempty"`
-}
+type Draft = protocol.Draft
 type draftRequest struct {
 	Draft
 	ExpectedRevision string                  `json:"expected_revision,omitempty"`
 	Edit             *workflow.EditRequest   `json:"edit,omitempty"`
 	WorkbenchEdit    *workflow.WorkbenchEdit `json:"workbench_edit,omitempty"`
+}
+type saveRequest struct {
+	Draft
+	ExpectedRevision string `json:"expected_revision"`
 }
 
 func (s *Server) document(input Draft) (workflow.Document, error) {
@@ -77,8 +76,13 @@ func (s *Server) documentReply(d workflow.Document, record *runs.WorkflowRecord)
 }
 func apiError(w http.ResponseWriter, e error) {
 	status := 400
+	var sizeErr *http.MaxBytesError
 	if errors.Is(e, runs.ErrConflict) {
 		status = 409
+	} else if errors.Is(e, errJSONMedia) {
+		status = 415
+	} else if errors.As(e, &sizeErr) {
+		status = 413
 	} else if errors.Is(e, os.ErrNotExist) {
 		status = 404
 	}
@@ -102,9 +106,19 @@ func paging(r *http.Request) (int, int, error) {
 	return offset, limit, nil
 }
 func (s *Server) routes(m *http.ServeMux, cfg Config) {
+	s.protocolRoutes(m)
 	m.HandleFunc("GET /api/v1/workspace-files", s.listWorkspaceFiles)
 	if cfg.Page != nil {
-		m.Handle("GET /", cfg.Page)
+		// A methodless root lets the API fallback own every /api/ method.
+		// GET / conflicts with that fallback under ServeMux specificity rules.
+		m.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet && r.Method != http.MethodHead {
+				w.Header().Set("Allow", "GET, HEAD")
+				http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+				return
+			}
+			cfg.Page.ServeHTTP(w, r)
+		})
 	}
 	m.HandleFunc("POST /api/v1/session", s.pair)
 	m.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, r *http.Request) {
@@ -209,7 +223,7 @@ func (s *Server) routes(m *http.ServeMux, cfg Config) {
 		reply(w, 200, s.documentReply(d, &record))
 	})
 	m.HandleFunc("PUT /api/v1/workflows/{id}", func(w http.ResponseWriter, r *http.Request) {
-		var input draftRequest
+		var input saveRequest
 		if e := readJSON(w, r, &input); e != nil {
 			apiError(w, e)
 			return

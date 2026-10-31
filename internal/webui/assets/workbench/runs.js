@@ -118,6 +118,14 @@ export function createRuns({
 
   function facts(snapshot) {
     if (snapshot.run_id !== runsState.activeRun) return;
+    // A refresh sampled before terminal SSE can arrive after the stream closes.
+    // Once this run is final, an older non-final snapshot cannot reopen it.
+    if (
+      runsState.snapshot?.run_id === snapshot.run_id &&
+      runsState.snapshot.final &&
+      !snapshot.final
+    )
+      return;
     const animateFacts =
       runsState.renderedRun === snapshot.run_id && snapshot.owned !== false;
     runsState.snapshot = snapshot;

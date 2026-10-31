@@ -1,39 +1,33 @@
 package runs
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"golang.org/x/sys/unix"
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 )
 
-// W2 permits four concurrent CLI owners per workspace; each engine instance
+// A workspace permits four concurrent run owners; each engine instance
 // still supports the independently bounded native multi-node workflow.
 func (s *Store) Lease(id string) (func() error, error) {
 	dir, e := s.path(id)
 	if e != nil {
 		return nil, e
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-	owner, e := s.lock(ctx, filepath.Join(dir, "owner.lock"))
-	cancel()
+	owner, e := s.tryLock(filepath.Join(dir, "owner.lock"))
 	if e != nil {
 		return nil, e
 	}
 	for slot := 0; slot < 4; slot++ {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-		release, e := s.lock(ctx, fmt.Sprintf(".runcradle/locks/slot-%d.lock", slot))
-		cancel()
+		release, e := s.tryLock(fmt.Sprintf(".runcradle/locks/slot-%d.lock", slot))
 		if e == nil {
 			var once sync.Once
 			var result error
 			return func() error { once.Do(func() { result = errors.Join(release(), owner()) }); return result }, nil
 		}
-		if !errors.Is(e, context.DeadlineExceeded) {
+		if !errors.Is(e, ErrBusy) {
 			owner()
 			return nil, e
 		}

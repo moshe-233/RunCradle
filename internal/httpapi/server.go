@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -9,17 +10,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runcradle/internal/output"
+	"runcradle/internal/protocol"
 	"runcradle/internal/runs"
 	"runcradle/internal/service"
 	"strings"
 	"sync"
 	"time"
 )
+
+var errJSONMedia = errors.New("Content-Type application/json required")
 
 type Config struct {
 	Workspace, Binary, Helper string
@@ -77,9 +82,7 @@ func Open(cfg Config) (*Server, error) {
 	if e != nil {
 		return nil, e
 	}
-	op, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-	release, e := store.ClaimServer(op)
-	cancel()
+	release, e := store.TryClaimServer()
 	if e != nil {
 		store.Close()
 		return nil, fmt.Errorf("workspace host already active or unavailable: %w", e)
@@ -171,6 +174,7 @@ func (s *Server) boundary(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-RunCradle-Instance", s.descriptor.InstanceID)
+		w.Header().Set("X-RunCradle-Contract", protocol.ContractVersion)
 		if r.Host != strings.TrimPrefix(s.URL, "http://") {
 			fail(w, 403, fmt.Errorf("Host does not match this workspace host"))
 			return
@@ -197,11 +201,19 @@ func (s *Server) boundary(next http.Handler) http.Handler {
 	})
 }
 func readJSON(w http.ResponseWriter, r *http.Request, v any) error {
-	if ct := r.Header.Get("Content-Type"); ct != "application/json" && !strings.HasPrefix(ct, "application/json;") {
-		return fmt.Errorf("Content-Type application/json required")
+	if ct, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || ct != "application/json" {
+		return errJSONMedia
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 8<<20)
-	dec := json.NewDecoder(r.Body)
+	r.Body = http.MaxBytesReader(w, r.Body, protocol.MaxRequestBytes)
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return fmt.Errorf("exactly one JSON object required")
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if e := dec.Decode(v); e != nil {
 		return e
@@ -218,7 +230,7 @@ func reply(w http.ResponseWriter, status int, v any) {
 		fail(w, 500, e)
 		return
 	}
-	if len(raw) > 32<<20 {
+	if len(raw) > protocol.MaxResponseBytes {
 		fail(w, 413, fmt.Errorf("response exceeds budget"))
 		return
 	}
@@ -228,7 +240,7 @@ func reply(w http.ResponseWriter, status int, v any) {
 	_, _ = w.Write(append(raw, '\n'))
 }
 func fail(w http.ResponseWriter, status int, e error) {
-	reply(w, status, map[string]any{"error": output.Clean(e.Error(), 512), "status": status})
+	reply(w, status, protocol.ProblemFor(status, output.Clean(e.Error(), 512)))
 }
 func (s *Server) pair(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Origin") != s.URL {
@@ -239,7 +251,7 @@ func (s *Server) pair(w http.ResponseWriter, r *http.Request) {
 		Token string `json:"token"`
 	}
 	if e := readJSON(w, r, &input); e != nil {
-		fail(w, 400, e)
+		apiError(w, e)
 		return
 	}
 	s.mu.Lock()

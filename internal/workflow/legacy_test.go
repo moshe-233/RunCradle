@@ -13,7 +13,7 @@ func TestLegacyV2RequiresExplicitMigrationWithoutRewriting(t *testing.T) {
 		t.Fatal("legacy policy accepted or changed")
 	}
 	for _, issue := range d.Issues {
-		if issue.Code == "legacy_v2" && issue.Path == "$.tasks" && strings.Contains(issue.Message, "W3_MIGRATION") {
+		if issue.Code == "legacy_v2" && issue.Path == "$.tasks" && strings.Contains(issue.Message, "map service/task to native processes") {
 			return
 		}
 	}

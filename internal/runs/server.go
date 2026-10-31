@@ -42,6 +42,12 @@ func (s *Store) ClaimServer(ctx context.Context) (func() error, error) {
 	}
 	return s.lock(ctx, ".runcradle/server/owner.lock")
 }
+func (s *Store) TryClaimServer() (func() error, error) {
+	if err := private(s.root, ".runcradle/server", true); err != nil {
+		return nil, err
+	}
+	return s.tryLock(".runcradle/server/owner.lock")
+}
 func (s *Store) PublishServer(d ServerDescriptor) error {
 	if d.Workspace != s.workspace || d.Version != 1 || !validID(d.InstanceID, 32) || !validID(d.Token, 64) {
 		return fmt.Errorf("invalid server descriptor")

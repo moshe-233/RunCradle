@@ -14,7 +14,7 @@ func TestW2ThreeNodeHTTPCLI(t *testing.T) {
 		t.Run(fmt.Sprint(actual), func(t *testing.T) {
 			dir := t.TempDir()
 			for _, name := range []string{"process-compose.yaml", "workflow.py"} {
-				raw, e := os.ReadFile(filepath.Join("..", "..", "examples", "w2-http", name))
+				raw, e := os.ReadFile(filepath.Join("..", "fixtures", "http-workflow", name))
 				if e != nil {
 					t.Fatal(e)
 				}

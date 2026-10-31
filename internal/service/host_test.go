@@ -179,6 +179,40 @@ func TestHostAcceptedRequestSurvivesDisconnectAndDeduplicates(t *testing.T) {
 		t.Fatal("completed adapter retained")
 	}
 }
+
+func TestUnknownSubmissionReplayDoesNotClaimAcceptance(t *testing.T) {
+	h, d, starts, _ := hostFixture(t)
+	req := Request{Document: d, Targets: []string{"a"}, Timeout: time.Second, RequestID: "unknown-replay"}
+	prepared, err := prepareRun(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity, err := h.identifyRun(prepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	intent, err := h.Store.Begin(context.Background(), req.RequestID, identity.digest, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(identity.record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Store.SaveInvocation(intent.RunID, raw); err != nil {
+		t.Fatal(err)
+	}
+	sub, err := h.StartRun(context.Background(), req)
+	if err == nil || Code(err) != 125 || sub.Accepted || sub.RunID != intent.RunID || starts.Load() != 0 {
+		t.Fatalf("unknown replay: %+v %v starts=%d", sub, err, starts.Load())
+	}
+	// A concurrent first caller that reached Begin before the other completed
+	// admission must consult the same evidence instead of assuming acceptance.
+	sub, accepted, err := h.admitRun(context.Background(), prepared, identity)
+	if err == nil || Code(err) != 125 || sub.Accepted || accepted != nil || sub.RunID != intent.RunID {
+		t.Fatalf("concurrent unknown replay: %+v %v", sub, err)
+	}
+}
 func TestHostCapacityStopAndShutdown(t *testing.T) {
 	h, d, _, _ := hostFixture(t)
 	ids := []string{}

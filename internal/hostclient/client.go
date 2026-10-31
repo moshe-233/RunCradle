@@ -1,18 +1,14 @@
 package hostclient
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"path/filepath"
 	"runcradle/internal/runs"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -21,14 +17,16 @@ type Client struct {
 	http       *http.Client
 }
 type HTTPError struct {
-	Status  int
-	Message string
+	Status     int
+	Message    string
+	Code       string
+	NextAction string
 }
 
 func (e *HTTPError) Error() string { return e.Message }
 func Connect(ctx context.Context, workspace string) (*Client, error) {
 	start := func(e error) (*Client, error) {
-		return nil, fmt.Errorf("workspace host unavailable: %v; start runcradle serve --workspace %q", e, workspace)
+		return nil, fmt.Errorf("workspace host unavailable: %w; start runcradle serve --workspace %q", e, workspace)
 	}
 	abs, e := filepath.Abs(workspace)
 	if e != nil {
@@ -85,55 +83,3 @@ func Connect(ctx context.Context, workspace string) (*Client, error) {
 	return c, nil
 }
 func (c *Client) Close() { c.http.CloseIdleConnections() }
-func (c *Client) Do(ctx context.Context, method, path string, body, out any) error {
-	if !strings.HasPrefix(path, "/api/v1/") || strings.HasPrefix(path, "//") {
-		return fmt.Errorf("invalid product API path")
-	}
-	var reader io.Reader
-	if body != nil {
-		raw, e := json.Marshal(body)
-		if e != nil {
-			return e
-		}
-		reader = bytes.NewReader(raw)
-	}
-	req, e := http.NewRequestWithContext(ctx, method, c.descriptor.URL+path, reader)
-	if e != nil {
-		return e
-	}
-	req.Header.Set("Authorization", "Bearer "+c.descriptor.Token)
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	res, e := c.http.Do(req)
-	if e != nil {
-		return e
-	}
-	defer res.Body.Close()
-	if res.Header.Get("X-RunCradle-Instance") != c.descriptor.InstanceID {
-		return fmt.Errorf("host instance mismatch; inspect the workspace descriptor")
-	}
-	raw, e := io.ReadAll(io.LimitReader(res.Body, 32<<20+1))
-	if e != nil {
-		return e
-	}
-	if len(raw) > 32<<20 {
-		return fmt.Errorf("product response exceeds budget")
-	}
-	if out != nil {
-		if e = json.Unmarshal(raw, out); e != nil {
-			return fmt.Errorf("invalid product response: %w", e)
-		}
-	}
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		var message struct {
-			Error string `json:"error"`
-		}
-		_ = json.Unmarshal(raw, &message)
-		if message.Error == "" {
-			message.Error = http.StatusText(res.StatusCode)
-		}
-		return &HTTPError{res.StatusCode, message.Error}
-	}
-	return nil
-}

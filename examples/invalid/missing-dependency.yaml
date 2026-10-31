@@ -1,2 +1,0 @@
-processes:
-  check: {command: echo check, depends_on: {missing: {}}}

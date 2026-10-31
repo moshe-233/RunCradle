@@ -487,6 +487,99 @@ async function main() {
       assert.equal(result.cleared, true);
       assert.match(result.error, /current failure/);
     });
+    await run("terminal-snapshot-race", async () => {
+      const result = await page.evaluate(async () => {
+        const { createRuns } = await import("/workbench/runs.js");
+        const original = window.EventSource,
+          streams = [],
+          state = {},
+          noop = () => {};
+        let releaseSnapshot, refreshStarted;
+        let reads = 0;
+        const refreshing = new Promise((resolve) => (refreshStarted = resolve));
+        const pending = {
+          run_id: "terminal-race",
+          owned: true,
+          final: false,
+          nodes: [],
+          target_nodes: ["build"],
+          task_result: "pending",
+        };
+        window.EventSource = class {
+          constructor() {
+            this.listeners = {};
+            streams.push(this);
+          }
+          addEventListener(name, handler) {
+            this.listeners[name] = handler;
+          }
+          close() { this.closed = true; }
+        };
+        try {
+          const runs = createRuns({
+            runsState: state,
+            api: async (resource) => {
+              if (resource.endsWith("/definition"))
+                return { source: "fixture", display: { view: { nodes: [] } } };
+              if (resource.startsWith("runs?")) return { runs: [] };
+              if (resource === "runs/next-run")
+                return { ...pending, run_id: "next-run" };
+              if (++reads === 1) return pending;
+              return new Promise((resolve) => {
+                releaseSnapshot = resolve;
+                refreshStarted();
+              });
+            },
+            readEditor: () => ({}),
+            readView: () => ({ mode: "monitor" }),
+            drawGraph: noop,
+            renderNodeFacts: noop,
+            setMode: noop,
+            resetCanvas: noop,
+            notice: noop,
+            guard: (fn) => fn,
+          });
+          await runs.openRun(pending.run_id);
+          const stream = streams[0];
+          stream.onmessage({ data: JSON.stringify({ seq: 1, kind: "state" }) });
+          await refreshing;
+          stream.listeners.final({
+            data: JSON.stringify({
+              ...pending,
+              final: true,
+              task_result: "succeeded",
+              cleanup: "complete",
+              history_integrity: "complete",
+            }),
+          });
+          // The HTTP refresh was sampled before the final SSE, but arrives after it.
+          releaseSnapshot(pending);
+          await new Promise(requestAnimationFrame);
+          const result = {
+            status: document.querySelector("#run-status").textContent,
+            final: state.snapshot.final,
+            stopped: document.querySelector("#stop-run").disabled,
+            closed: stream.closed,
+          };
+          await runs.openRun("next-run");
+          return {
+            ...result,
+            nextStatus: document.querySelector("#run-status").textContent,
+            nextID: state.snapshot.run_id,
+          };
+        } finally {
+          window.EventSource = original;
+        }
+      });
+      assert.deepEqual(
+        result,
+        {
+          status: "succeeded", final: true, stopped: true, closed: true,
+          nextStatus: "pending", nextID: "next-run",
+        },
+        "a late refresh must preserve finality without blocking the next run",
+      );
+    });
     await run("event-memory", async () => {
       const result = await page.evaluate(async () => {
         const { createRuns } = await import("/workbench/runs.js");

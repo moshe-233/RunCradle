@@ -51,7 +51,7 @@ async function host(dir) {
     { stdio: ["ignore", "pipe", "pipe"] },
   );
   let stderr = "";
-  child.stderr.on("data", (b) => (stderr += b.toString().slice(-4096)));
+  child.stderr.on("data", (b) => (stderr = (stderr + b).slice(-4096)));
   const ready = await new Promise((resolve, reject) => {
     let raw = "";
     const timer = setTimeout(() => {
@@ -78,6 +78,7 @@ async function host(dir) {
   return {
     child,
     ready,
+    stderr: () => stderr,
     close: async () => {
       if (child.exitCode !== null) return;
       child.kill("SIGTERM");
@@ -111,7 +112,7 @@ async function record(name, fn) {
 }
 function fixture(dir) {
   fs.copyFileSync(
-    "examples/w2-http/process-compose.yaml",
+    "tests/fixtures/http-workflow/process-compose.yaml",
     path.join(dir, "process-compose.yaml"),
   );
   let native = fs
@@ -119,7 +120,7 @@ function fixture(dir) {
     .replace("--exit-code, '0'", "--exit-code, '7'");
   fs.writeFileSync(path.join(dir, "process-compose.yaml"), native);
   let script = fs
-    .readFileSync("examples/w2-http/workflow.py", "utf8")
+    .readFileSync("tests/fixtures/http-workflow/workflow.py", "utf8")
     .replace("import argparse", "import argparse\nimport json\nimport os")
     .replace(
       'Path("checked").write_bytes(content)',
@@ -273,8 +274,31 @@ async function main() {
       page.setDefaultTimeout(10000);
       const errors = [],
         external = [];
+      let submission;
+      page.on("response", async (response) => {
+        if (
+          response.request().method() !== "POST" ||
+          new URL(response.url()).pathname !== "/api/v1/runs"
+        )
+          return;
+        try {
+          const data = await response.json();
+          submission = {
+            status: response.status(),
+            run_id: data.run_id,
+            request_id: data.request_id,
+            accepted: data.accepted,
+            code: data.code,
+            error: data.error,
+          };
+        } catch (error) {
+          submission = { status: response.status(), error: error.message };
+        }
+      });
       page.on("pageerror", (e) => errors.push(e.message));
       page.on("request", (r) => {
+        if (r.method() === "POST" && new URL(r.url()).pathname === "/api/v1/runs")
+          submission = undefined;
         if (
           /^https?:/.test(r.url()) &&
           !r.url().startsWith(server.ready.url + "/")
@@ -991,6 +1015,42 @@ async function main() {
           },
         );
       } catch (e) {
+        // CI logs must distinguish a stale UI from a rejected or failed run.
+        try {
+          const displayed = await page.evaluate(() =>
+            Object.fromEntries(
+              ["run-id", "run-status", "run-reason", "stream-state", "notice"]
+                .map((id) => [id, document.getElementById(id)?.textContent]),
+            ),
+          );
+          const id = submission?.run_id || displayed["run-id"];
+          let snapshotJSON, snapshotError;
+          if (/^[a-f0-9]{32}$/.test(id || "")) {
+            try {
+              // Preserve int64 parameter values exactly in diagnostic evidence.
+              snapshotJSON = fs.readFileSync(
+                path.join(dir, ".runcradle/runs", id, "snapshot.json"), "utf8",
+              );
+            } catch (error) {
+              snapshotError = error.message;
+            }
+          }
+          const diagnostic = {
+            viewport,
+            case: records.at(-1)?.name,
+            displayed,
+            submission,
+            snapshot_json: snapshotJSON,
+            snapshot_error: snapshotError,
+            page_errors: errors,
+            host_stderr: server.stderr(),
+          };
+          fs.writeFileSync(path.join(reportRoot, "browser-failure.json"),
+            JSON.stringify(diagnostic, null, 2) + "\n");
+          console.error("Browser failure evidence: " + JSON.stringify(diagnostic));
+        } catch (error) {
+          console.error("Browser failure evidence unavailable: " + error.message);
+        }
         fs.writeFileSync(
           path.join(reportRoot, "browser-failure.txt"),
           (await page.locator("body").innerText()) +

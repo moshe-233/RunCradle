@@ -52,7 +52,7 @@ func ParseDocument(source []byte, format string, ui []byte) Document {
 	d.Native = native
 	if native["processes"] == nil && fmt.Sprint(native["version"]) == "2" {
 		if _, legacy := native["tasks"].(map[string]any); legacy {
-			d.problem("legacy_v2", "$.tasks", "legacy RuntimeHealer v2 policy: explicitly map service/task to native processes; keep old state and query it with the reference CLI; see docs/W3_MIGRATION.md", findNode(d.AST, "tasks"))
+			d.problem("legacy_v2", "$.tasks", "legacy RuntimeHealer v2 policy: explicitly map service/task to native processes; preserve old state and use its original CLI to query it; automatic migration is not supported", findNode(d.AST, "tasks"))
 			return d
 		}
 	}

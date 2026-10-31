@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"runcradle/internal/engine"
+	"runcradle/internal/output"
+	"runcradle/internal/protocol"
 	"runcradle/internal/runs"
 	"runcradle/internal/service"
 	"runcradle/internal/workflow"
@@ -13,18 +15,7 @@ import (
 	"time"
 )
 
-type RunRequest struct {
-	WorkflowID string                     `json:"workflow_id,omitempty"`
-	Revision   string                     `json:"revision"`
-	Document   *Draft                     `json:"document,omitempty"`
-	RequestID  string                     `json:"request_id"`
-	Targets    []string                   `json:"target_nodes"`
-	Mode       string                     `json:"mode,omitempty"`
-	TimeoutMS  int64                      `json:"timeout_ms,omitempty"`
-	Preset     string                     `json:"preset_id,omitempty"`
-	Values     map[string]json.RawMessage `json:"values,omitempty"`
-	Retain     bool                       `json:"retain_evidence,omitempty"`
-}
+type RunRequest = protocol.RunRequest
 
 func (s *Server) snapshotReply(state engine.Snapshot) any {
 	raw, _ := json.MarshalIndent(state.Values, "", "  ")
@@ -80,8 +71,8 @@ func (s *Server) runRoutes(m *http.ServeMux) {
 			}
 			reply(w, status, struct {
 				service.Submission
-				Error string `json:"error"`
-			}{sub, e.Error()})
+				protocol.Problem
+			}{sub, protocol.ProblemFor(status, output.Clean(e.Error(), 512))})
 			return
 		}
 		reply(w, 202, sub)

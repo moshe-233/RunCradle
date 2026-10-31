@@ -103,10 +103,14 @@ func (h *Host) replayRun(identity runIdentity, requestID string) (Submission, er
 		return Submission{}, &Error{2, runs.ErrConflict}
 	}
 	state, err := h.Store.Load(previous.RunID, time.Now())
+	sub := Submission{RunID: previous.RunID, RequestID: requestID, Revision: previous.Revision}
 	if err != nil {
-		return Submission{}, &Error{125, err}
+		return sub, &Error{125, err}
 	}
-	sub := Submission{RunID: previous.RunID, RequestID: requestID, Revision: previous.Revision, Accepted: state.Reason != "not_submitted"}
+	if state.Reason == "" || state.Reason == "submission_unknown" {
+		return sub, &Error{125, fmt.Errorf("submission acceptance is unknown; inspect the original request before retrying")}
+	}
+	sub.Accepted = state.Reason != "not_submitted"
 	if !sub.Accepted {
 		return sub, &Error{2, fmt.Errorf("original request was not submitted; use a new request after capacity is available")}
 	}
@@ -128,7 +132,9 @@ func (h *Host) admitRun(ctx context.Context, prepared preparedRun, identity runI
 	sub := Submission{RunID: intent.RunID, RequestID: req.RequestID, Revision: req.Document.Revision, Accepted: true}
 	// Begin 也会在锁内去重；另一个请求先登记时，本调用不取得槽位或启动 worker。
 	if !intent.New {
-		return sub, nil, nil
+		identity.previous = &intent
+		sub, err = h.replayRun(identity, req.RequestID)
+		return sub, nil, err
 	}
 	raw, err := json.Marshal(identity.record)
 	if err == nil {

@@ -78,3 +78,11 @@ cp /path/to/runcradle-<version>-linux-amd64/examples/hello.yaml /path/to/project
 - 随包内核通过本目录私有路径调用，但每次任务运行依然在独立的私有临时目录与 UDS 空间启动独立实例；
 - 所有进程均在当前普通用户权限下运行，目录包**不提供容器沙箱或提权隔离**。
 
+## 6. 接入层使用
+
+发行二进制自带协议说明，无需源码文档：`runcradle api describe` 查看能力与预算；`runcradle api schema --workspace DIR --out openapi.json` 导出 OpenAPI 3.1.1，文件必须尚不存在。
+
+启动 `serve` 后，`runcradle api status --workspace DIR` 返回活宿主的 URL、实例 ID 和私有凭据文件位置，输出不包含 Token。`api request --workspace DIR --path /api/v1/workflows --out response.json` 调用有限 HTTP 响应；`POST`/`PUT` 另需 `--method` 和 `--input` JSON 文件。输出始终是小型 JSON 回执，完整响应保存在新建的工作区文件中。
+
+长任务可用 `workflow run ... --detach --request-id ID` 提交；exit 0 只证明宿主受理。后续用 `workflow inspect --workspace DIR --request-id ID` 查询，停止需要显式 `workflow stop`。重试始终保留原 request ID；传输失败不能证明任务未启动。
+

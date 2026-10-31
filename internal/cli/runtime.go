@@ -21,6 +21,8 @@ func (v *targetsFlag) String() string     { return strings.Join(*v, ",") }
 func (v *targetsFlag) Set(s string) error { *v = append(*v, s); return nil }
 
 type runtimeResult struct {
+	Code             string         `json:"code,omitempty"`
+	Accepted         *bool          `json:"accepted,omitempty"`
 	StopObservation  string         `json:"stop_observation,omitempty"`
 	ResidualPath     string         `json:"residual_path,omitempty"`
 	EngineSignal     int            `json:"engine_signal,omitempty"`

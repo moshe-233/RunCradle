@@ -12,9 +12,140 @@ import (
 	"runcradle/internal/runs"
 	"runcradle/internal/workflow"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestDetachedRunReturnsAcceptanceWithoutObservingOrStopping(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "pc.yaml"), []byte("processes: {a: {command: sleep 10}}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	instance, runID := strings.Repeat("b", 32), strings.Repeat("a", 32)
+	var submissions, observations, stops atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-RunCradle-Instance", instance)
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/v1/health":
+			json.NewEncoder(w).Encode(map[string]string{"status": "ready", "instance_id": instance})
+		case strings.Contains(r.URL.Path, "run-requests"):
+			w.WriteHeader(404)
+			w.Write([]byte(`{"error":"not found"}`))
+		case r.Method == "POST" && r.URL.Path == "/api/v1/runs":
+			submissions.Add(1)
+			var input httpapi.RunRequest
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+				t.Error(err)
+			}
+			w.WriteHeader(202)
+			json.NewEncoder(w).Encode(map[string]any{"run_id": runID, "request_id": input.RequestID, "revision": input.Revision, "accepted": true})
+		case strings.HasSuffix(r.URL.Path, "/stop"):
+			stops.Add(1)
+			w.WriteHeader(400)
+		default:
+			observations.Add(1)
+			w.WriteHeader(400)
+		}
+	}))
+	defer server.Close()
+	store, err := runs.Open(dir, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	release, err := store.ClaimServer(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	if err := store.PublishServer(runs.ServerDescriptor{Version: 1, URL: server.URL, Workspace: dir, InstanceID: instance, Token: strings.Repeat("c", 64)}); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	args := []string{"workflow", "run", "--workspace", dir, "--file", "pc.yaml", "--target", "a", "--request-id", "detached", "--detach"}
+	code := Run(context.Background(), args, &out, &out)
+	var result struct {
+		Status    string `json:"status"`
+		RunID     string `json:"run_id"`
+		RequestID string `json:"request_id"`
+		Accepted  bool   `json:"accepted"`
+		Revision  string `json:"revision"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil || code != 0 || !result.Accepted || result.Status != "accepted" || result.RunID != runID || result.RequestID != "detached" || result.Revision == "" {
+		t.Fatalf("detached: %d %s %v", code, &out, err)
+	}
+	if submissions.Load() != 1 || observations.Load() != 0 || stops.Load() != 0 {
+		t.Fatalf("unexpected calls: submit=%d observe=%d stop=%d", submissions.Load(), observations.Load(), stops.Load())
+	}
+}
+
+func TestDetachedRunRequiresCallerOwnedRequestID(t *testing.T) {
+	_, err := parseRunOptions([]string{"--workspace", t.TempDir(), "--file", "pc.yaml", "--target", "a", "--detach"})
+	if err == nil || !strings.Contains(err.Error(), "request-id") {
+		t.Fatalf("missing retry identity: %v", err)
+	}
+}
+
+func TestDetachedLostResponseRequiresEvidenceOfAcceptance(t *testing.T) {
+	for _, reason := range []string{"accepted", "submission_unknown", "not_submitted"} {
+		t.Run(reason, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "pc.yaml"), []byte("processes: {a: {command: echo ok}}"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			instance, runID := strings.Repeat("b", 32), strings.Repeat("a", 32)
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("X-RunCradle-Instance", instance)
+				switch {
+				case r.URL.Path == "/api/v1/health":
+					json.NewEncoder(w).Encode(map[string]string{"status": "ready", "instance_id": instance})
+				case r.Method == "POST":
+					calls.Add(1)
+					conn, _, err := w.(http.Hijacker).Hijack()
+					if err != nil {
+						t.Error(err)
+						return
+					}
+					conn.Close()
+				case calls.Load() == 0:
+					w.WriteHeader(404)
+					w.Write([]byte(`{"error":"not found"}`))
+				default:
+					json.NewEncoder(w).Encode(map[string]any{"run_id": runID, "snapshot": map[string]any{"run_id": runID, "reason": reason, "final": reason == "not_submitted", "cleanup": "unknown", "task_result": "unknown"}})
+				}
+			}))
+			defer server.Close()
+			store, err := runs.Open(dir, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			release, err := store.ClaimServer(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer release()
+			if err := store.PublishServer(runs.ServerDescriptor{Version: 1, URL: server.URL, Workspace: dir, InstanceID: instance, Token: strings.Repeat("c", 64)}); err != nil {
+				t.Fatal(err)
+			}
+			var out bytes.Buffer
+			code := Run(context.Background(), []string{"workflow", "run", "--workspace", dir, "--file", "pc.yaml", "--target", "a", "--request-id", "original", "--detach"}, &out, &out)
+			want := 125
+			if reason == "accepted" {
+				want = 0
+			}
+			if reason == "not_submitted" {
+				want = 2
+			}
+			if code != want || calls.Load() != 1 || !strings.Contains(out.String(), runID) {
+				t.Fatalf("reconciliation: code=%d calls=%d output=%s", code, calls.Load(), &out)
+			}
+		})
+	}
+}
 
 func TestUnsupportedStoredDefinitionReturnsConfigurationExitWithoutStarting(t *testing.T) {
 	dir := t.TempDir()

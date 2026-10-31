@@ -1,3 +1,0 @@
-extends: later.yaml
-processes:
-  check: {command: echo preserved, depends_on: {external: {}}}
