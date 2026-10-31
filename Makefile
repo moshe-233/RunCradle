@@ -54,6 +54,9 @@ prepare-web-test: | workspace-dirs
 web-test: build
 	node tests/web/workbench-graph-test.cjs
 	node tests/web/frontend-test.cjs
+	node tests/web/uiux-test.cjs
+	node tests/web/motion-test.cjs
+	node tests/web/usability-test.cjs
 	node tests/web/lifecycle-test.cjs
 	node tests/web/web-test.cjs
 

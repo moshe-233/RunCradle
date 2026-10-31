@@ -221,7 +221,7 @@ func bundleHost(t *testing.T, binary, workspace string, env []string) func() {
 	// 从真实归档启动后检查模块路由，防止源码页面可用但发行包遗漏资源。
 	client := &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{}}
 	defer client.CloseIdleConnections()
-	for _, asset := range []string{"/app.js", "/workbench/state.js", "/workbench/api.js", "/workbench/editor.js", "/workbench/runs.js", "/workbench/inspector.js", "/workbench/view.js"} {
+	for _, asset := range []string{"/app.js", "/workbench/state.js", "/workbench/api.js", "/workbench/editor.js", "/workbench/runs.js", "/workbench/inspector.js", "/workbench/view.js", "/workbench/feedback.js"} {
 		response, requestErr := client.Get(ready.URL + asset)
 		if requestErr != nil {
 			t.Fatal(requestErr)

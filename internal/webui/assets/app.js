@@ -103,7 +103,7 @@
   on("offline-map-toggle", () => {
     $("offline-map").hidden = !$("offline-map").hidden;
   });
-  RunCradleTheme.mount("offline-theme", "offline-palette");
+  const cycleTheme = RunCradleTheme.mount("offline-palette");
   for (const [id, dir] of [
     ["offline-up", "upstream"],
     ["offline-down", "downstream"],
@@ -131,13 +131,18 @@
     }
   });
   document.addEventListener("keydown", (e) => {
-    if (e.target.isContentEditable) return;
+    if (e.target.isContentEditable || e.target.matches("input,textarea,select"))
+      return;
+    if (e.key === "t") {
+      e.preventDefault();
+      cycleTheme();
+      return;
+    }
     const keys = {
       "+": "zoom-in",
       "-": "zoom-out",
       0: "fit",
       m: "offline-map-toggle",
-      t: "offline-theme",
     };
     if (e.key === "/" || ((e.ctrlKey || e.metaKey) && e.key === "k")) {
       e.preventDefault();

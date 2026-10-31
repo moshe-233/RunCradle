@@ -1,4 +1,13 @@
-import { $, node } from "./view.js";
+import {
+  resourceFilters,
+  recordRow,
+  formatTime,
+  shortTime,
+  withOperation,
+  operationPending,
+  fieldErrors,
+} from "./feedback.js";
+import { $, node, reconcileChildren, beginLoading } from "./view.js";
 
 // 编辑与版本只修改 editorState；运行定义通过只读视图取得。
 export function createEditor({
@@ -23,11 +32,15 @@ export function createEditor({
   showDiff,
   sourceLines,
   updateCanvas,
+  pendingNodes,
+  syncTargets,
+  selectedTargets,
+  resetCanvas,
 }) {
   const normalize = (text) => text.replace(/\r\n?/g, "\n");
 
   function draft() {
-  // 文本框会规范化换行；未修改时保留原字节，避免无意改变 revision。
+    // 文本框会规范化换行；未修改时保留原字节，避免无意改变 revision。
     const old = editorState.document;
     const source =
       old && normalize(old.source) === $("native-source").value
@@ -60,13 +73,16 @@ export function createEditor({
   }
 
   function syncButtons() {
-    $("draft-status").textContent = dirty()
-      ? "草稿已修改 · 未保存"
-      : "已保存 · 运行固定此版本";
+    const count = pendingNodes().length;
+    $("draft-status").textContent =
+      (dirty() ? "草稿已修改 · 未保存" : "已保存 · 运行固定此版本") +
+      (count ? ` · ${count} 个节点未应用` : "");
     $("start-run").disabled =
+      operationPending("start-run") ||
       readView().editorBusy ||
       !editorState.workflow ||
       dirty() ||
+      !selectedTargets().length ||
       !editorState.document?.valid ||
       !editorState.document?.run_supported;
     $("copy-workflow").disabled = !editorState.workflow;
@@ -128,6 +144,7 @@ export function createEditor({
     if (fresh) {
       setMode("design");
       resetInspectorDrafts();
+      resetCanvas($("editor-graph"));
     }
     $("reimport-preview").hidden = true;
     editorState.importPreview = null;
@@ -157,6 +174,7 @@ export function createEditor({
       $("conflict").hidden = true;
     }
     $("workflow-id").textContent = editorState.workflow?.workflow_id || "";
+    resourceFilters();
     $("saved-revision").textContent = editorState.savedRevision;
     $("version-select").replaceChildren();
     $("version-select").disabled = !editorState.workflow;
@@ -186,27 +204,26 @@ export function createEditor({
       li.append(b);
       $("issues").append(li);
     }
-    $("validate-draft").textContent = (data.issues || []).some(
+    $("validate-draft").dataset.idleLabel = (data.issues || []).some(
       (i) => i.severity === "error",
     )
       ? `校验 · ${(data.issues || []).filter((i) => i.severity === "error").length} 问题`
       : "✓ 校验";
+    if (!operationPending("validate-draft"))
+      $("validate-draft").textContent = $("validate-draft").dataset.idleLabel;
     $("execution-note").textContent = data.execution_note;
     const previous = $("edit-node").value;
     $("edit-node").replaceChildren();
-    $("run-targets").replaceChildren();
+    syncTargets(data.display.view.nodes, { reset: fresh });
     $("step-list").replaceChildren();
     for (const item of data.display.view.nodes) {
       $("edit-node").append(new Option(item.label, item.name));
-      $("run-targets").append(new Option(item.name, item.name));
       const button = node("button", item.label);
       button.dataset.node = item.id;
       button.addEventListener("click", () => selectNode(item.id));
       $("step-list").append(button);
     }
     if (data.display.view.nodes.length) {
-      $("run-targets").options[$("run-targets").options.length - 1].selected =
-        true;
       const initial =
         data.display.view.nodes.find((n) => n.name === previous) ||
         data.display.view.nodes[0];
@@ -243,26 +260,59 @@ export function createEditor({
   async function library(more = false) {
     if (!more) {
       editorState.workflowOffset = 0;
-      $("workflow-list").replaceChildren();
     }
-    const data = await api(`workflows?offset=${editorState.workflowOffset}&limit=20`);
-    editorState.workflowOffset = data.next_offset;
-    $("more-workflows").hidden = !data.has_more;
-    for (const item of data.workflows) {
-      const button = node(
-        "button",
-        `${item.title} · ${item.revision.slice(0, 8)}`,
+    const list = $("workflow-list");
+    list._retry = () =>
+      library(more).catch((error) => notice(error.message, true));
+    delete list.dataset.readError;
+    const request = beginLoading(list);
+    resourceFilters();
+    try {
+      const data = await api(
+        `workflows?offset=${editorState.workflowOffset}&limit=20`,
       );
-      button.dataset.workflow = item.workflow_id;
-      button.setAttribute(
-        "aria-current",
-        String(item.workflow_id === editorState.workflow?.workflow_id),
+      if (!request.current()) return;
+      const host = $("workflow-list");
+      const existing = new Map(
+        Array.from(host.querySelectorAll(".resource-row"), (row) => [
+          row.dataset.record,
+          row,
+        ]),
       );
-      button.addEventListener(
-        "click",
-        guard(() => openWorkflow(item.workflow_id)),
-      );
-      $("workflow-list").append(button);
+      const rows = more ? [...host.querySelectorAll(".resource-row")] : [];
+      editorState.workflowOffset = data.next_offset;
+      $("more-workflows").hidden = !data.has_more;
+      for (const item of data.workflows) {
+        const id = item.workflow_id;
+        const row = recordRow(
+          existing.get(id),
+          {
+            id,
+            kind: "workflow",
+            title: item.title,
+            detail: shortTime(item.updated_at),
+            fullTime: formatTime(item.updated_at),
+            search: item.revision,
+            result: undefined,
+          },
+          guard(() => openWorkflow(id)),
+        );
+        row
+          .querySelector(".record-select")
+          .setAttribute(
+            "aria-current",
+            String(id === editorState.workflow?.workflow_id),
+          );
+        if (!rows.includes(row)) rows.push(row);
+      }
+      reconcileChildren(host, rows);
+    } catch (error) {
+      if (!request.current()) return;
+      list.dataset.readError = error.message;
+      throw error;
+    } finally {
+      request.finish();
+      resourceFilters();
     }
   }
 
@@ -275,7 +325,7 @@ export function createEditor({
     await runHistory();
   }
 
-  async function save() {
+  async function save(succeeded) {
     const data = await validate();
     if (!data.valid) {
       notice("请先修正校验错误。", true);
@@ -291,18 +341,30 @@ export function createEditor({
         },
       });
       renderDocument(saved, { saved: true });
+      succeeded("已保存");
       history.replaceState(
         null,
         "",
         `/?workflow=${saved.workflow.workflow_id}` +
           (readRuns().activeRun ? "#run=" + readRuns().activeRun : ""),
       );
-      notice("版本已保存，导入源文件未修改。");
-      await library();
-      await runHistory();
+      notice(
+        "版本已保存，导入源文件未修改。" +
+          (pendingNodes().length
+            ? ` ${pendingNodes().length} 个节点的未应用输入尚未包含在此版本中。`
+            : ""),
+      );
+      try {
+        await library();
+        await runHistory();
+      } catch (error) {
+        notice("版本已保存；列表读取失败：" + error.message, true);
+      }
     } catch (e) {
       if (e.status === 409 && editorState.workflow) {
-        const latest = await api(`workflows/${editorState.workflow.workflow_id}`);
+        const latest = await api(
+          `workflows/${editorState.workflow.workflow_id}`,
+        );
         $("conflict-source").textContent =
           `最新版本 ${latest.revision}\n${latest.source}\n${latest.ui_source || ""}`;
         $("conflict").hidden = false;
@@ -363,6 +425,11 @@ export function createEditor({
       body = body.slice(0, -2) + "," + JSON.stringify(key) + ":" + value + "}}";
     }
     const data = await api("validate", { method: "POST", body });
+    if (!data.valid) {
+      const error = new Error("校验未通过，输入已保留。");
+      error.data = data;
+      throw error;
+    }
     const selectedName =
       edit.action === "rename_process"
         ? edit.new_name
@@ -376,7 +443,7 @@ export function createEditor({
   }
 
   function rawValues(text) {
-  // 保留十进制原文，不能先转 Number，否则 int64 会丢精度。
+    // 保留十进制原文，不能先转 Number，否则 int64 会丢精度。
     const values = {};
     const re =
       /"((?:[^"\\]|\\.)*)"\s*:\s*("(?:[^"\\]|\\.)*"|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)/g;
@@ -478,14 +545,45 @@ export function createEditor({
     }
   }
 
-  function encodedValues() {
-    const pairs = [];
+  function parameterErrors() {
+    const errors = [];
     for (const c of $("parameter-inputs").querySelectorAll("[data-input]")) {
       if (c.dataset.hasBase !== "true" && c.dataset.modified !== "true")
         continue;
-      const raw =
-        c.dataset.enum === "true" ? c.value : typedRaw(c.dataset.kind, c.value);
-      pairs.push(JSON.stringify(c.dataset.input) + ":" + raw);
+      try {
+        if (c.dataset.enum !== "true") typedRaw(c.dataset.kind, c.value);
+      } catch (error) {
+        errors.push({
+          field: c,
+          message: c.dataset.input + "：" + error.message,
+        });
+      }
+    }
+    return errors;
+  }
+
+  function encodedValues() {
+    const pairs = [],
+      errors = [];
+    for (const c of $("parameter-inputs").querySelectorAll("[data-input]")) {
+      if (c.dataset.hasBase !== "true" && c.dataset.modified !== "true")
+        continue;
+      try {
+        const raw =
+          c.dataset.enum === "true"
+            ? c.value
+            : typedRaw(c.dataset.kind, c.value);
+        pairs.push(JSON.stringify(c.dataset.input) + ":" + raw);
+      } catch (error) {
+        errors.push({
+          field: c,
+          message: c.dataset.input + "：" + error.message,
+        });
+      }
+    }
+    if (errors.length) {
+      fieldErrors($("launchpad"), $("launch-error"), errors, { focus: true });
+      throw new Error("请修正运行参数类型。");
     }
     return "{" + pairs.join(",") + "}";
   }
@@ -571,7 +669,10 @@ export function createEditor({
           ',"values":' +
           encodedValues() +
           "}";
-        await applyWorkbenchEdit({ action: "save_preset" }, { preset_spec: raw });
+        await applyWorkbenchEdit(
+          { action: "save_preset" },
+          { preset_spec: raw },
+        );
         closeDialog("launchpad");
       },
       true,
@@ -614,12 +715,18 @@ export function createEditor({
     $("new-workflow").addEventListener("click", guard(fresh));
     $("validate-draft").addEventListener(
       "click",
-      guard(async () => {
-        const d = await validate();
-        if (d.issues?.length) showDialog("source-dialog");
-      }),
+      guard(() =>
+        withOperation("validate-draft", "校验中…", async (succeeded) => {
+          const d = await validate();
+          if (d.valid) succeeded("校验通过");
+          if (d.issues?.length) showDialog("source-dialog");
+        }),
+      ),
     );
-    $("save-workflow").addEventListener("click", guard(save));
+    $("save-workflow").addEventListener(
+      "click",
+      guard(() => withOperation("save-workflow", "保存中…", save)),
+    );
     $("apply-field").addEventListener(
       "click",
       guard(() => edit()),
@@ -640,20 +747,23 @@ export function createEditor({
       $(id).addEventListener("input", markDirty);
     $("import-workspace").addEventListener(
       "click",
-      guard(async () => {
-        const data = await api("imports", {
-          method: "POST",
-          body: {
-            file: $("import-file-path").value,
-            ui: $("import-ui-path").value,
-          },
-        });
-        renderDocument(data, { fresh: true });
-        closeDialog("file-picker");
-        if (matchMedia("(max-width:700px)").matches)
-          document.body.classList.add("sidebar-collapsed");
-        notice("已读取预览；尚未保存或执行。");
-      }),
+      guard(() =>
+        withOperation("import-workspace", "读取中…", async (succeeded) => {
+          const data = await api("imports", {
+            method: "POST",
+            body: {
+              file: $("import-file-path").value,
+              ui: $("import-ui-path").value,
+            },
+          });
+          renderDocument(data, { fresh: true });
+          closeDialog("file-picker");
+          if (matchMedia("(max-width:700px)").matches)
+            document.body.classList.add("sidebar-collapsed");
+          succeeded("已载入预览");
+          notice("已读取预览；尚未保存或执行。");
+        }),
+      ),
     );
     $("reimport-workspace").addEventListener(
       "click",
@@ -713,16 +823,22 @@ export function createEditor({
     $("version-select").addEventListener(
       "change",
       guard(() =>
-        openWorkflow(editorState.workflow.workflow_id, $("version-select").value),
+        openWorkflow(
+          editorState.workflow.workflow_id,
+          $("version-select").value,
+        ),
       ),
     );
     $("copy-workflow").addEventListener(
       "click",
       guard(async () => {
-        const copy = await api(`workflows/${editorState.workflow.workflow_id}/copy`, {
-          method: "POST",
-          body: { revision: editorState.savedRevision },
-        });
+        const copy = await api(
+          `workflows/${editorState.workflow.workflow_id}/copy`,
+          {
+            method: "POST",
+            body: { revision: editorState.savedRevision },
+          },
+        );
         renderDocument(copy, { saved: true, fresh: true });
         await library();
         await runHistory();
@@ -740,6 +856,7 @@ export function createEditor({
   return {
     dirty,
     encodedValues,
+    parameterErrors,
     syncButtons,
     draft,
     selectNode,

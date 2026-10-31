@@ -170,6 +170,13 @@ async function reveal(page, selector) {
       if ((await d.getAttribute("id")) !== target) await d.press("Escape");
     }
   }
+  if (
+    ((target === "source-dialog" &&
+      !(await page.locator("#source-dialog").evaluate((el) => el.open))) ||
+      selector === "#validate-draft") &&
+    !(await page.locator("#more-actions").evaluate((el) => el.open))
+  )
+    await page.locator("#more-actions summary").click();
   if (target && !(await page.locator("#" + target).evaluate((d) => d.open))) {
     if (
       target === "file-picker" &&
@@ -228,6 +235,12 @@ function act(page, selector) {
   for (const method of ["click", "fill", "selectOption", "focus", "check"]) {
     actions[method] = async (...args) => {
       await reveal(page, selector);
+      if (selector === "#run-targets" && method === "selectOption") {
+        const names = Array.isArray(args[0]) ? args[0] : [args[0]];
+        for (const box of await locator.locator('input[type="checkbox"]').all())
+          await box.setChecked(names.includes(await box.inputValue()));
+        return;
+      }
       return locator[method](...args);
     };
   }
@@ -344,7 +357,13 @@ async function main() {
             await page.locator("#node-facts .alert").waitFor();
             assert.match(
               await page.locator("#node-facts").innerText(),
-              /exit_code[\s\S]*7/,
+              /直接退出回执[\s\S]*7/,
+            );
+            assert.equal(
+              JSON.parse(
+                await page.locator("#node-facts .fact-raw pre").textContent(),
+              ).exit_code,
+              7,
             );
             await page.screenshot({
               path: path.join(
@@ -733,7 +752,7 @@ async function main() {
             );
             assert.equal(
               await page.locator(".bound-param").textContent(),
-              "◇ count",
+              "count",
             );
             await page.locator("#close-inspector").click();
             await page.locator("#add-node").click();
@@ -770,10 +789,9 @@ async function main() {
               await page.locator("#editor-graph svg").getAttribute("width"),
               before,
             );
-            await page.locator("#visual-style").selectOption("teal");
-            await page.locator("#theme-toggle").click();
-            await page.locator("#theme-toggle").click();
-            await page.locator("#visual-style").selectOption("blue");
+            await page.locator("#visual-style").selectOption("teal-light");
+            await page.locator("#visual-style").selectOption("graphite-amber");
+            await page.locator("#visual-style").selectOption("blue-light");
             await page.locator("#open-search").click();
             await page.locator("#global-search").fill("COUNT");
             await page.locator("#search-results button").first().click();
@@ -905,8 +923,12 @@ async function main() {
             await offline.locator("#offline-map-toggle").click();
             assert.equal(await offline.locator("#offline-map svg").count(), 1);
             await offline.locator("#zoom-in").click();
-            await offline.locator("#offline-theme").click();
-            await offline.locator("#offline-palette").selectOption("teal");
+            await offline
+              .locator("#offline-palette")
+              .selectOption("graphite-amber");
+            await offline
+              .locator("#offline-palette")
+              .selectOption("teal-light");
             await offline.screenshot({
               path: path.join(
                 os.tmpdir(),

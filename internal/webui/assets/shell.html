@@ -11,7 +11,10 @@
   </head>
   <body>
     <header class="topbar">
-      <button id="toggle-sidebar" aria-label="折叠资源栏">☰</button
+      <button id="toggle-sidebar" aria-label="折叠资源栏">
+        <svg class="control-icon" viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M3 5h14M3 10h14M3 15h14" />
+        </svg></button
       ><a class="brand" href="/" aria-label="RunCradle 首页"
         ><svg viewBox="0 0 28 28" aria-hidden="true">
           <path
@@ -32,10 +35,17 @@
           <svg viewBox="0 0 20 20" aria-hidden="true">
             <circle cx="8.5" cy="8.5" r="5.5" />
             <path d="m13 13 4 4" />
-          </svg></button
-        ><button id="open-source">源码</button
-        ><button id="validate-draft">校验</button
-        ><button id="save-workflow">保存版本</button
+          </svg>
+        </button>
+        <details id="more-actions" class="toolbar-menu">
+          <summary>更多</summary>
+          <div class="menu-items">
+            <button id="open-source">源码</button
+            ><button id="validate-draft">校验</button
+            ><button id="open-help">快捷键与操作说明</button>
+          </div>
+        </details>
+        <button id="save-workflow">保存版本</button
         ><button id="open-launchpad" class="primary">运行</button
         ><button id="stop-run" disabled>停止</button>
       </div>
@@ -56,12 +66,36 @@
           aria-label="过滤资源"
           placeholder="过滤工作流或运行…"
         />
+        <button id="clear-library-filter" hidden>清空筛选</button>
         <section id="library-panel">
+          <p id="workflow-list-count" class="list-count"></p>
+          <div
+            id="workflow-list-state"
+            class="empty-state"
+            role="status"
+            hidden
+          ></div>
           <nav id="workflow-list" aria-label="已保存工作流"></nav>
           <button id="more-workflows" hidden>更多工作流</button
           ><button id="open-import" class="wide">导入工作区文件</button>
         </section>
         <section id="history-panel" hidden>
+          <label class="compact-filter"
+            >任务结果<select id="history-result-filter">
+              <option value="">全部</option>
+              <option value="pending">待定</option>
+              <option value="succeeded">成功</option>
+              <option value="failed">失败</option>
+              <option value="unknown">未知</option>
+            </select></label
+          >
+          <p id="run-history-count" class="list-count"></p>
+          <div
+            id="run-history-state"
+            class="empty-state"
+            role="status"
+            hidden
+          ></div>
           <div id="run-history"></div>
           <button id="more-runs" hidden>更多运行</button>
         </section>
@@ -86,17 +120,26 @@
         ></div>
         <div id="minimap" class="minimap"></div>
         <div class="canvas-dock">
-          <button id="zoom-out" aria-label="缩小">−</button
-          ><button id="zoom-in" aria-label="放大">+</button
-          ><button id="fit">适应 0</button
+          <button id="zoom-out" aria-label="缩小">
+            <svg class="control-icon" viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M4 10h12" />
+            </svg></button
+          ><output id="zoom-level" aria-label="画布缩放">100%</output
+          ><button id="zoom-in" aria-label="放大">
+            <svg class="control-icon" viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M4 10h12M10 4v12" />
+            </svg></button
+          ><button id="fit">适应视图</button
           ><button id="map-toggle">小地图 M</button
           ><button id="trace-up">上游</button
           ><button id="trace-down">下游</button
           ><button id="trace-clear">清除</button
-          ><select id="visual-style" aria-label="视觉样式">
-            <option value="blue">蓝色</option>
-            <option value="teal">青绿色</option></select
-          ><button id="theme-toggle">深暗</button>
+          ><span class="dock-divider" aria-hidden="true"></span
+          ><select id="visual-style" aria-label="外观主题">
+            <option value="blue-light">蓝色浅色</option>
+            <option value="teal-light">青绿色浅色</option>
+            <option value="graphite-amber">石墨琥珀深色</option>
+          </select>
         </div>
       </main>
       <aside id="inspector" class="editor drawer" hidden>
@@ -105,18 +148,33 @@
             <h2 id="inspector-title">节点</h2>
             <span id="inspector-id" class="muted"></span>
           </div>
-          <button id="close-inspector" aria-label="关闭节点检查器">×</button>
+          <button id="close-inspector" aria-label="关闭节点检查器">
+            <svg class="control-icon" viewBox="0 0 20 20" aria-hidden="true">
+              <path d="m5 5 10 10M15 5 5 15" />
+            </svg>
+          </button>
         </div>
         <div class="tabs">
           <button id="config-tab" aria-pressed="true">配置编辑</button
           ><button id="facts-tab" aria-pressed="false">运行事实</button>
         </div>
         <div id="node-config">
+          <nav id="inspector-sections" aria-label="配置分区">
+            <button data-inspector-section="basic">基本</button
+            ><button data-inspector-section="execution">执行</button
+            ><button data-inspector-section="environment">环境</button
+            ><button data-inspector-section="dependencies">依赖</button
+            ><button data-inspector-section="advanced">高级</button>
+          </nav>
+          <p id="inspector-pending" class="pending-note" role="status" hidden>
+            未应用修改 · 应用到草稿后才能保存
+          </p>
+          <div id="inspector-error" class="alert" role="alert" hidden></div>
           <p id="raw-only" class="alert" hidden>
             共享 YAML 或非标准字段形态，请使用源码编辑。
           </p>
           <fieldset id="node-fields">
-            <h3 class="form-section">基本信息</h3>
+            <h3 id="section-basic" class="form-section">基本信息</h3>
             <label class="property-row">节点名称<input id="node-name" /></label
             ><label class="property-row"
               >显示名称<input id="node-label" /></label
@@ -126,7 +184,7 @@
                 <option value="entrypoint">参数数组</option>
               </select></label
             >
-            <h3 class="form-section">执行内容</h3>
+            <h3 id="section-execution" class="form-section">执行内容</h3>
             <label id="command-label"
               >命令<textarea
                 id="node-command"
@@ -143,12 +201,12 @@
               >工作目录<input id="node-working-dir" placeholder="工作区根目录"
             /></label>
             <div class="section-heading">
-              <h3>环境与参数</h3>
+              <h3 id="section-environment">环境与参数</h3>
               <button id="add-env">+ 变量</button>
             </div>
             <div id="env-rows"></div>
             <div class="section-heading">
-              <h3>前置依赖</h3>
+              <h3 id="section-dependencies">前置依赖</h3>
               <button id="add-dependency">+ 依赖</button>
             </div>
             <div id="dependency-rows"></div>
@@ -231,7 +289,25 @@
           role="tabpanel"
           aria-labelledby="evidence-overview-tab"
         >
-          <p id="run-empty">选择历史或运行一个已保存版本。</p>
+          <p id="run-empty">
+            保存版本后，打开运行启动台并选择目标。也可从运行历史查看已有证据。
+          </p>
+          <div id="run-overview-summary" class="evidence-summary" hidden>
+            <div><span>目标</span><strong id="summary-targets"></strong></div>
+            <div>
+              <span>任务结果</span><strong id="summary-result"></strong>
+            </div>
+            <div><span>异常</span><strong id="summary-anomalies"></strong></div>
+          </div>
+          <div id="fact-controls" hidden>
+            <label
+              >节点事实<select id="fact-filter">
+                <option value="">全部</option>
+                <option value="failed">失败节点</option>
+              </select></label
+            ><span id="fact-count" class="list-count"></span>
+          </div>
+          <p id="fact-empty" hidden>没有匹配的节点事实。</p>
           <div id="run-nodes"></div>
         </div>
         <div
@@ -241,7 +317,21 @@
           hidden
         >
           <p>当前提供结构化运行事件；日志正文仅在显式保留失败线索时可用。</p>
-          <label>事件节点过滤<input id="event-filter" /></label>
+          <div class="event-filters">
+            <label>过滤事件内容<input id="event-filter" /></label
+            ><label
+              >事件节点<select id="event-node-filter">
+                <option value="">全部节点</option>
+              </select></label
+            ><button id="clear-event-filter" hidden>清空筛选</button>
+          </div>
+          <p id="event-count" class="list-count"></p>
+          <div
+            id="event-list-state"
+            class="empty-state"
+            role="status"
+            hidden
+          ></div>
           <ol id="timeline"></ol>
         </div>
         <div
@@ -275,7 +365,11 @@
     <dialog id="source-dialog" class="wide-dialog editor">
       <div class="section-heading">
         <h2>原生配置与 UI 元数据</h2>
-        <button data-close="source-dialog" aria-label="关闭源码">×</button>
+        <button data-close="source-dialog" aria-label="关闭源码">
+          <svg class="control-icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m5 5 10 10M15 5 5 15" />
+          </svg>
+        </button>
       </div>
       <div class="identity">
         <span>工作流 <code id="workflow-id"></code></span
@@ -337,9 +431,28 @@
         <div>
           <h2>运行启动台</h2>
         </div>
-        <button data-close="launchpad" aria-label="关闭运行启动台">×</button>
+        <button data-close="launchpad" aria-label="关闭运行启动台">
+          <svg class="control-icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m5 5 10 10M15 5 5 15" />
+          </svg>
+        </button>
       </div>
       <p>运行已保存版本，参数只作用于本次执行副本。</p>
+      <fieldset class="target-picker">
+        <legend>目标节点（多选）</legend>
+        <input
+          id="target-search"
+          aria-label="搜索目标节点"
+          placeholder="搜索名称或显示名称…"
+        />
+        <div id="run-targets"></div>
+        <p id="target-summary" role="status">请选择至少一个目标节点。</p>
+        <p id="target-notice" class="pending-note" role="status" hidden></p>
+      </fieldset>
+      <div id="launch-pending" class="pending-note" hidden>
+        <p id="launch-pending-text"></p>
+        <button id="return-to-edit">返回编辑</button>
+      </div>
       <label
         >预设<select id="preset-select">
           <option value="">默认值</option>
@@ -359,12 +472,6 @@
           ><button id="delete-preset">删除选中预设</button>
         </div>
         <label
-          >目标节点（多选）<select
-            id="run-targets"
-            multiple
-            size="3"
-          ></select></label
-        ><label
           >时限（毫秒）<input
             id="timeout-ms"
             inputmode="numeric"
@@ -374,13 +481,54 @@
           天）</label
         >
       </details>
+      <div id="launch-error" class="alert" hidden></div>
       <p id="launch-note"></p>
       <button id="start-run" class="primary wide" disabled>运行此版本</button>
+    </dialog>
+    <dialog id="help-dialog" aria-labelledby="help-title">
+      <div class="section-heading">
+        <h2 id="help-title">快捷键与操作说明</h2>
+        <button data-close="help-dialog" aria-label="关闭操作说明">关闭</button>
+      </div>
+      <p>在画布或工具栏使用以下已有快捷键；输入框内保留正常文字编辑。</p>
+      <dl class="shortcut-list">
+        <dt>Ctrl / ⌘ + K，/</dt>
+        <dd>搜索节点与操作</dd>
+        <dt>+ / −</dt>
+        <dd>放大 / 缩小</dd>
+        <dt>0</dt>
+        <dd>适应整个工作流</dd>
+        <dt>M</dt>
+        <dd>显示 / 收起小地图</dd>
+        <dt>T</dt>
+        <dd>按列表顺序切换三个独立主题</dd>
+        <dt>[</dt>
+        <dd>展开 / 收起资源栏</dd>
+        <dt>方向键</dt>
+        <dd>画布选择节点；证据页签切换选项</dd>
+        <dt>Home / End</dt>
+        <dd>证据页签选择首项 / 末项</dd>
+        <dt>Enter / Space</dt>
+        <dd>激活聚焦控件；Space 勾选目标</dd>
+        <dt>Esc</dt>
+        <dd>关闭提示、当前弹窗或窄屏检查器</dd>
+      </dl>
+      <p>
+        应用到草稿 → 保存版本 →
+        选择目标运行。未应用输入不会自动进入版本。启动需已保存、校验通过且支持运行，并至少选择一个目标。
+      </p>
+      <p>
+        停止仅针对本服务持有的未结束运行；请求受理后仍需观察终态与清理。历史完整性、直接退出回执和任务结果分别呈现。
+      </p>
     </dialog>
     <dialog id="file-picker">
       <div class="section-heading">
         <h2>导入工作区文件</h2>
-        <button data-close="file-picker" aria-label="关闭文件选择器">×</button>
+        <button data-close="file-picker" aria-label="关闭文件选择器">
+          <svg class="control-icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m5 5 10 10M15 5 5 15" />
+          </svg>
+        </button>
       </div>
       <input
         id="file-search"
@@ -414,7 +562,11 @@
     <dialog id="diff-dialog" class="wide-dialog">
       <div class="section-heading">
         <h2 id="diff-title">版本对比</h2>
-        <button data-close="diff-dialog" aria-label="关闭版本对比">×</button>
+        <button data-close="diff-dialog" aria-label="关闭版本对比">
+          <svg class="control-icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m5 5 10 10M15 5 5 15" />
+          </svg>
+        </button>
       </div>
       <div id="diff-columns" class="source-columns"></div>
       <div id="conflict" hidden>
@@ -433,7 +585,11 @@
     <dialog id="search-dialog">
       <div class="section-heading">
         <h2>搜索与命令</h2>
-        <button data-close="search-dialog" aria-label="关闭搜索">×</button>
+        <button data-close="search-dialog" aria-label="关闭搜索">
+          <svg class="control-icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m5 5 10 10M15 5 5 15" />
+          </svg>
+        </button>
       </div>
       <input
         id="global-search"
@@ -445,8 +601,13 @@
     <dialog id="bind-dialog">
       <div class="section-heading">
         <h2>暴露为运行参数</h2>
-        <button data-close="bind-dialog" aria-label="关闭参数绑定">×</button>
+        <button data-close="bind-dialog" aria-label="关闭参数绑定">
+          <svg class="control-icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m5 5 10 10M15 5 5 15" />
+          </svg>
+        </button>
       </div>
+      <div id="bind-error" class="form-errors" hidden></div>
       <label>参数名<input id="bind-name" /></label
       ><label
         >类型<select id="bind-type">
@@ -465,8 +626,13 @@
     <dialog id="add-dialog">
       <div class="section-heading">
         <h2>新增节点</h2>
-        <button data-close="add-dialog" aria-label="关闭新增节点">×</button>
+        <button data-close="add-dialog" aria-label="关闭新增节点">
+          <svg class="control-icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m5 5 10 10M15 5 5 15" />
+          </svg>
+        </button>
       </div>
+      <div id="add-error" class="form-errors" hidden></div>
       <label>节点键名<input id="add-name" placeholder="new_step" /></label>
       <p id="add-upstream"></p>
       <button id="confirm-add" class="primary">创建节点</button>

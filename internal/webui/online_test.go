@@ -36,7 +36,7 @@ func TestWorkbenchShellSurfaces(t *testing.T) {
 }
 
 func TestWorkbenchModulesHaveExplicitSameOriginRoutes(t *testing.T) {
-	for _, name := range []string{"state", "api", "editor", "runs", "inspector", "view"} {
+	for _, name := range []string{"state", "api", "editor", "runs", "inspector", "view", "feedback"} {
 		response := httptest.NewRecorder()
 		Handler().ServeHTTP(response, httptest.NewRequest("GET", "/workbench/"+name+".js", nil))
 		if response.Code != 200 || response.Body.Len() == 0 || response.Header().Get("Content-Type") != "application/javascript; charset=utf-8" {

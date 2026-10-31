@@ -9,10 +9,13 @@ import { createView, $ } from "./workbench/view.js";
 const state = createWorkbenchState();
 let editor, runs, inspector, view;
 const api = createAPI({
-  onConnection: (text) => { $("connection-state").textContent = text; },
+  onConnection: (text) => {
+    $("connection-state").textContent = text;
+  },
 });
 view = createView({
   viewState: state.view,
+  pendingNodes: () => inspector?.pendingNodes() || [],
   addNode: (...args) => inspector.addNode(...args),
   closeInspector: (...args) => inspector.closeInspector(...args),
   inspectorOverlay: (...args) => inspector.inspectorOverlay(...args),
@@ -27,6 +30,11 @@ view = createView({
 });
 inspector = createInspector({
   inspectorState: state.inspector,
+  onPendingChange: () => {
+    editor?.syncButtons();
+    view.markPending();
+    runs?.launchFeedback();
+  },
   api,
   closeDialog: (...args) => view.closeDialog(...args),
   currentCanvas: (...args) => view.currentCanvas(...args),
@@ -45,6 +53,10 @@ inspector = createInspector({
 });
 editor = createEditor({
   editorState: state.editor,
+  pendingNodes: () => inspector.pendingNodes(),
+  syncTargets: (...args) => runs.syncTargets(...args),
+  selectedTargets: () => runs.selectedTargets(),
+  resetCanvas: (...args) => view.resetCanvas(...args),
   api,
   clearSelection: (...args) => inspector.clearSelection(...args),
   closeDialog: (...args) => view.closeDialog(...args),
@@ -68,11 +80,18 @@ editor = createEditor({
 });
 runs = createRuns({
   runsState: state.runs,
+  pendingNodes: () => inspector.pendingNodes(),
+  returnToEditing: (id) => {
+    view.setMode("design");
+    if (id) inspector.selectWorkbenchNode(id);
+  },
+  resetCanvas: (...args) => view.resetCanvas(...args),
   api,
   closeDialog: (...args) => view.closeDialog(...args),
   dirty: (...args) => editor.dirty(...args),
   drawGraph: (...args) => view.drawGraph(...args),
   encodedValues: (...args) => editor.encodedValues(...args),
+  parameterErrors: () => editor.parameterErrors(),
   focusNode: (...args) => view.focusNode(...args),
   guard: (...args) => view.guard(...args),
   setMode: (...args) => view.setMode(...args),

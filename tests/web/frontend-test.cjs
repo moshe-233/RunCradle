@@ -124,6 +124,146 @@ async function main() {
     await page.locator('#editor-graph [aria-label="构建"]').waitFor();
     const select = (name) =>
       page.locator(`#editor-graph .graph-node[aria-label="${name}"]`).click();
+    if (["all", "theme"].includes(phase)) {
+      const themes = ["blue-light", "teal-light", "graphite-amber"];
+      assert.deepEqual(
+        await page
+          .locator("#visual-style option")
+          .evaluateAll((options) => options.map((option) => option.value)),
+        themes,
+        "one list offers two light themes and one independent dark theme",
+      );
+      assert.equal(await page.locator("#theme-toggle").count(), 0);
+      await page.locator("#save-workflow").click();
+      await page.waitForFunction(() => location.search.includes("workflow="));
+      for (const [legacy, expected] of [
+        [{ palette: "blue", dark: false }, "blue-light"],
+        [{ palette: "teal", dark: false }, "teal-light"],
+        [{ palette: "blue", dark: true }, "graphite-amber"],
+        [{ palette: "teal", dark: true }, "graphite-amber"],
+      ]) {
+        await page.evaluate((value) => {
+          localStorage.removeItem("runcradle.appearance.v2");
+          localStorage.setItem(
+            "runcradle.appearance.v1",
+            JSON.stringify(value),
+          );
+        }, legacy);
+        await page.reload();
+        await page.locator("#editor-graph .graph-node").first().waitFor();
+        assert.equal(
+          await page.locator("#visual-style").inputValue(),
+          expected,
+        );
+        assert.equal(
+          await page.locator("body").getAttribute("data-theme"),
+          expected,
+        );
+      }
+      const renderedThemes = [];
+      for (const theme of themes) {
+        await page.locator("#visual-style").selectOption(theme);
+        await page.reload();
+        await page.locator("#editor-graph .graph-node").first().waitFor();
+        assert.equal(
+          await page.locator("#visual-style").inputValue(),
+          theme,
+          "new preference takes priority over legacy dark preference",
+        );
+        renderedThemes.push(
+          await page.evaluate((theme) => {
+            const body = getComputedStyle(document.body),
+              input = getComputedStyle(document.querySelector("#node-name")),
+              primary = getComputedStyle(
+                document.querySelector("#open-launchpad"),
+              );
+            return {
+              theme,
+              text: body.color,
+              background: body.backgroundColor,
+              inputText: input.color,
+              inputBackground: input.backgroundColor,
+              primaryText: primary.color,
+              primaryBackground: primary.backgroundColor,
+            };
+          }, theme),
+        );
+      }
+      fs.writeFileSync(
+        path.join(screenshotRoot, "theme-rendered-colors.json"),
+        JSON.stringify(renderedThemes, null, 2),
+      );
+      await page.evaluate(() => {
+        localStorage.setItem("runcradle.appearance.v2", "{broken");
+        localStorage.setItem(
+          "runcradle.appearance.v1",
+          JSON.stringify({ palette: "teal", dark: false }),
+        );
+      });
+      await page.reload();
+      await page.locator("#editor-graph .graph-node").first().waitFor();
+      assert.equal(
+        await page.locator("#visual-style").inputValue(),
+        "teal-light",
+        "corrupt new preference falls back to valid old preference",
+      );
+      await page.evaluate(() => {
+        localStorage.setItem("runcradle.appearance.v2", "{broken");
+        localStorage.setItem("runcradle.appearance.v1", "null");
+      });
+      await page.reload();
+      await page.locator("#editor-graph .graph-node").first().waitFor();
+      assert.equal(
+        await page.locator("#visual-style").inputValue(),
+        "blue-light",
+      );
+      await select("构建");
+      await page.locator("#node-command").fill("echo theme draft");
+      await page.locator("#zoom-in").click();
+      await page.locator("#node-command").focus();
+      const before = await page.evaluate(() => {
+        const graph = document.querySelector("#editor-graph");
+        graph.scrollLeft = 60;
+        window.themeTestSVG = graph.querySelector("svg");
+        return { zoom: graph.dataset.zoom, left: graph.scrollLeft };
+      });
+      await page.locator("#visual-style").selectOption("graphite-amber");
+      const after = await page.evaluate(() => {
+        const graph = document.querySelector("#editor-graph");
+        return {
+          zoom: graph.dataset.zoom,
+          left: graph.scrollLeft,
+          same: graph.querySelector("svg") === window.themeTestSVG,
+          active: document.activeElement.id,
+        };
+      });
+      assert.deepEqual({ zoom: after.zoom, left: after.left }, before);
+      assert.equal(after.same, true);
+      assert.equal(after.active, "node-command");
+      await page.locator("#node-command").press("t");
+      assert.equal(
+        await page.locator("#visual-style").inputValue(),
+        "graphite-amber",
+        "typing T does not switch theme",
+      );
+      await page.locator("#node-command").fill("echo theme draft");
+      await page.locator("#editor-graph .graph-node").first().focus();
+      for (const theme of themes) {
+        await page.keyboard.press("t");
+        assert.equal(await page.locator("#visual-style").inputValue(), theme);
+      }
+      assert.equal(
+        await page.locator("#node-command").inputValue(),
+        "echo theme draft",
+      );
+      await page.locator("#discard-node").click();
+      await page.locator("#close-inspector").click();
+      await page.locator("#visual-style").selectOption("blue-light");
+      await page.locator("#fit").click();
+      console.log(
+        "PASS theme: independent themes, legacy/new preference recovery, T cycle, input and viewport preservation",
+      );
+    }
     if (["all", "keyboard"].includes(phase)) {
       await page.setViewportSize({ width: 390, height: 844 });
       const first = page.locator("#editor-graph .graph-node").first();
@@ -199,7 +339,10 @@ async function main() {
       await page.locator("#node-label").fill("新的构建");
       let applyRequests = 0;
       const countApply = (request) => {
-        if (request.method() === "POST" && request.url().endsWith("/api/v1/validate"))
+        if (
+          request.method() === "POST" &&
+          request.url().endsWith("/api/v1/validate")
+        )
           applyRequests++;
       };
       page.on("request", countApply);
@@ -208,7 +351,11 @@ async function main() {
         document.querySelector("#native-source").value.includes("echo applied"),
       );
       page.off("request", countApply);
-      assert.equal(applyRequests, 1, "one click applies one edit; handlers are not duplicated");
+      assert.equal(
+        applyRequests,
+        1,
+        "one click applies one edit; handlers are not duplicated",
+      );
       assert.equal(
         await page.locator("#node-label").inputValue(),
         "新的构建",
@@ -254,11 +401,10 @@ async function main() {
       }
       const n = await page.locator("#inspector").isVisible();
       if (!n) await select("构建");
-      await page.locator("#visual-style").selectOption("teal");
-      await page.locator("#theme-toggle").click();
+      await page.locator("#visual-style").selectOption("graphite-amber");
       assert.equal(
-        await page.locator("body").getAttribute("data-palette"),
-        "teal",
+        await page.locator("body").getAttribute("data-theme"),
+        "graphite-amber",
       );
       assert.equal(
         await page
@@ -271,8 +417,8 @@ async function main() {
       await page.reload();
       await page.locator("#editor-graph .graph-node").first().waitFor();
       assert.equal(
-        await page.locator("body").getAttribute("data-palette"),
-        "teal",
+        await page.locator("body").getAttribute("data-theme"),
+        "graphite-amber",
         "theme survives reload",
       );
       assert.equal(
@@ -281,8 +427,7 @@ async function main() {
           .evaluate((b) => getComputedStyle(b).colorScheme),
         "dark",
       );
-      await page.locator("#visual-style").selectOption("blue");
-      await page.locator("#theme-toggle").click();
+      await page.locator("#visual-style").selectOption("blue-light");
       await select("构建");
       await page.locator("#fit").click();
       for (const viewport of [
@@ -314,19 +459,15 @@ async function main() {
       if (!(await page.locator("#sidebar").isVisible()))
         await page.locator("#toggle-sidebar").click();
       await page.locator("#discard-node").click();
-      await page.locator("#theme-toggle").click();
+      await page.locator("#visual-style").selectOption("graphite-amber");
       await page.screenshot({
         path: path.join(screenshotRoot, "workbench-dark.png"),
       });
-      await page.locator("#visual-style").selectOption("teal");
-      await page.screenshot({
-        path: path.join(screenshotRoot, "workbench-teal-dark.png"),
-      });
-      await page.locator("#theme-toggle").click();
+      await page.locator("#visual-style").selectOption("teal-light");
       await page.screenshot({
         path: path.join(screenshotRoot, "workbench-teal-light.png"),
       });
-      await page.locator("#visual-style").selectOption("blue");
+      await page.locator("#visual-style").selectOption("blue-light");
       await page.locator("#open-launchpad").click();
       assert.equal(
         await page.locator("#timeout-ms").isVisible(),
@@ -389,12 +530,17 @@ async function main() {
         false,
         "initial offline view must fit the six-node fixture",
       );
-      await offline.locator("#offline-palette").selectOption("teal");
-      await offline.locator("#offline-theme").click();
+      assert.deepEqual(
+        await offline
+          .locator("#offline-palette option")
+          .evaluateAll((options) => options.map((option) => option.value)),
+        ["blue-light", "teal-light", "graphite-amber"],
+      );
+      await offline.locator("#offline-palette").selectOption("graphite-amber");
       await offline.reload();
       assert.equal(
-        await offline.locator("body").getAttribute("data-palette"),
-        "teal",
+        await offline.locator("body").getAttribute("data-theme"),
+        "graphite-amber",
       );
       assert.equal(
         await offline
@@ -403,7 +549,7 @@ async function main() {
         "dark",
       );
       assert.equal(await offline.locator(".node-icon").count(), 6);
-      await offline.locator("#offline-theme").click();
+      await offline.locator("#offline-palette").selectOption("teal-light");
       await offline.screenshot({
         path: path.join(screenshotRoot, "offline.png"),
       });
@@ -452,6 +598,17 @@ async function main() {
         await isolated.locator(".graph-node").count(),
         6,
         "export works with denied storage",
+      );
+      await isolated.locator("#offline-palette").selectOption("graphite-amber");
+      assert.equal(
+        await isolated.locator("body").getAttribute("data-theme"),
+        "graphite-amber",
+      );
+      await isolated.locator("body").click({ position: { x: 8, y: 8 } });
+      await isolated.keyboard.press("t");
+      assert.equal(
+        await isolated.locator("#offline-palette").inputValue(),
+        "blue-light",
       );
       await isolated.close();
       console.log(

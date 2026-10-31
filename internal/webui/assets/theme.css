@@ -1,4 +1,12 @@
 :root {
+  --motion-fast: 160ms;
+  --motion-content: 180ms;
+  --motion-feedback: 220ms;
+  --motion-tab: 240ms;
+  --motion-fold: 260ms;
+  --motion-panel: 280ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --motion-exit: cubic-bezier(0.4, 0, 1, 1);
   color-scheme: light;
   --frame: #e8edf3;
   --canvas: #f8fafc;
@@ -26,7 +34,7 @@
     sans-serif;
   font-synthesis: none;
 }
-body[data-palette="teal"] {
+body[data-theme="teal-light"] {
   --frame: #e7efed;
   --canvas: #f7fbfa;
   --sidebar: #f0f5f3;
@@ -36,39 +44,36 @@ body[data-palette="teal"] {
   --icon-fg: #127975;
   --icon-detail: #7acbc1;
 }
-body.dark {
+body[data-theme="graphite-amber"] {
   color-scheme: dark;
-  --frame: #10171e;
-  --canvas: #141d26;
-  --surface: #1d2935;
-  --sidebar: #192530;
-  --elevated: #273544;
-  --border: #344556;
-  --text: #edf2f8;
-  --muted: #afbdd0;
-  --accent: #78b1ff;
-  --accent-soft: #243f63;
-  --on-accent: #10223c;
-  --success: #88d2a7;
-  --success-soft: #203e32;
-  --warning: #e5bb71;
-  --danger: #ffa5b1;
-  --danger-soft: #442a35;
-  --icon-bg: #253f63;
-  --icon-fg: #8cbeff;
-  --icon-detail: #4d84cc;
+  --frame: #101418;
+  --canvas: #15191e;
+  --surface: #1c2127;
+  --sidebar: #1c2127;
+  --elevated: #2b323a;
+  --node-surface: #252b32;
+  --input-surface: #171c21;
+  --control-border: #64717b;
+  --border: #48515a;
+  --text: #e8edf1;
+  --muted: #b2bcc6;
+  --accent: #efbd73;
+  --accent-soft: #493923;
+  --on-accent: #21190e;
+  --success: #86d3a6;
+  --success-soft: #203a2e;
+  --waiting: #9bbdd7;
+  --running: #8ac4df;
+  --warning: #f1d574;
+  --danger: #ffaaa9;
+  --danger-soft: #432b30;
+  --icon-bg: #493b27;
+  --icon-fg: #efbd73;
+  --icon-detail: #bc8e4e;
 }
-body.dark[data-palette="teal"] {
-  --frame: #101b1c;
-  --canvas: #142223;
-  --surface: #1d3032;
-  --sidebar: #192b2d;
-  --elevated: #2a3e40;
-  --border: #3b5254;
-  --accent: #75d5cb;
-  --accent-soft: #244b49;
-  --on-accent: #0c302e;
-  --icon-bg: #254a48;
-  --icon-fg: #90ded5;
-  --icon-detail: #438b87;
+
+.theme-changing *,
+.theme-changing *::before,
+.theme-changing *::after {
+  transition: none !important;
 }

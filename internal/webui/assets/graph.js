@@ -53,7 +53,126 @@ window.RunCradleGraph = (() => {
       return { state: "idle", reason: "证据不足：未取得此条件的独立事实" };
     return { state: started(a) ? "waiting" : "idle", reason: "等待前置条件" };
   }
+  const labels = {
+    declared: "未运行",
+    running: "运行中",
+    pending: "等待中",
+    completed: "已结束",
+    failed: "失败",
+    skipped: "已跳过",
+    stopped: "已停止",
+    unknown: "未知",
+  };
+  const renderCache = new WeakMap();
+  const factAnimations = new Set();
+  if (typeof document !== "undefined") {
+    const cancel = () => {
+      for (const animation of factAnimations) animation.cancel();
+      factAnimations.clear();
+    };
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) cancel();
+    });
+    window.addEventListener("pagehide", cancel);
+    window.addEventListener("pageshow", cancel);
+    matchMedia("(prefers-reduced-motion: reduce)").addEventListener(
+      "change",
+      cancel,
+    );
+  }
+  function updateFacts(container, display, facts, animate) {
+    const put = (el, text) => {
+      if (el.textContent !== text) el.textContent = text;
+    };
+    const groups = container.querySelectorAll(".graph-node");
+    display.graph.nodes.forEach((p, i) => {
+      const g = groups[i],
+        d = display.view.nodes.find((n) => n.id === p.ID),
+        f = facts.find((n) => n.name === p.Name);
+      const state = f?.state || "declared";
+      const previous = g.dataset.factState;
+      const health = f?.health || "";
+      const healthChanged = g.dataset.factHealth !== health;
+      if (previous !== state) {
+        if (previous) g.classList.remove(previous);
+        g.classList.add(state);
+      }
+      put(g.querySelector("title"), p.Label + " · " + (labels[state] || state));
+      put(g.querySelector(".node-state"), labels[state] || "未知");
+      put(
+        g.querySelector(".node-probe"),
+        d?.has_readiness_probe || d?.has_liveness_probe
+          ? health === "ready"
+            ? "探针就绪"
+            : "探针 " + (health || "未观察")
+          : "",
+      );
+      put(
+        g.querySelector(".node-exit"),
+        f
+          ? f.signal
+            ? "信号 " + f.signal
+            : f.exit_code !== null && f.exit_code !== undefined
+              ? "退出 " + f.exit_code
+              : "退出未知"
+          : "",
+      );
+      const role = g.querySelector(".node-role");
+      role.dataset.start = f?.started_at || "";
+      role.dataset.end = f?.ended_at || "";
+      if (
+        animate &&
+        previous &&
+        (previous !== state || healthChanged) &&
+        !document.hidden &&
+        !matchMedia("(prefers-reduced-motion: reduce)").matches
+      ) {
+        const target = g.querySelector(
+          previous !== state ? ".state-pill" : ".node-probe",
+        );
+        for (const a of factAnimations)
+          if (a.effect?.target === target) a.cancel();
+        const a = target.animate([{ opacity: 0.25 }, { opacity: 1 }], {
+          duration: 220,
+          easing: "cubic-bezier(.2,0,0,1)",
+        });
+        factAnimations.add(a);
+        const clean = () => factAnimations.delete(a);
+        a.addEventListener("finish", clean, { once: true });
+        a.addEventListener("cancel", clean, { once: true });
+      }
+      g.dataset.factState = state;
+      g.dataset.factHealth = health;
+    });
+    const edges = container.querySelectorAll(".edge");
+    display.graph.edges.forEach((edge, i) => {
+      const el = edges[i],
+        status = edgeState(edge, display.view.nodes, facts);
+      if (el.dataset.edgeState !== status.state) {
+        el.classList.remove(el.dataset.edgeState);
+        el.classList.add(status.state);
+        el.dataset.edgeState = status.state;
+      }
+      put(el.querySelector("title"), edge.Condition + " · " + status.reason);
+    });
+  }
   function draw(container, display, select, facts = [], actions = {}) {
+    const key = JSON.stringify([
+      container._graphIdentity,
+      display,
+      !!actions.run,
+      !!actions.add,
+    ]);
+    const cached = renderCache.get(container);
+    if (
+      display?.graph &&
+      cached?.key === key &&
+      cached.svg === container.firstElementChild
+    ) {
+      updateFacts(container, display, facts, actions.animateFacts === true);
+      return cached.svg;
+    }
+
     container.replaceChildren();
     if (!display?.graph) return;
     const graph = display.graph,
@@ -274,7 +393,7 @@ window.RunCradleGraph = (() => {
         });
         btn.append(
           svgNode("rect", { x: 191, y: 7, width: 22, height: 20, rx: 4 }),
-          svgNode("text", { x: 197, y: 22 }, "▶"),
+          svgNode("path", { d: "m199 12 7 5-7 5Z", fill: "var(--accent)" }),
         );
         const run = (e) => {
           e.stopPropagation();
@@ -298,7 +417,11 @@ window.RunCradleGraph = (() => {
         });
         btn.append(
           svgNode("circle", { cx: 240, cy: 72, r: 11 }),
-          svgNode("text", { x: 236, y: 77 }, "+"),
+          svgNode("path", {
+            d: "M235 72h10M240 67v10",
+            stroke: "var(--accent)",
+            "stroke-width": 1.6,
+          }),
         );
         const add = (e) => {
           e.stopPropagation();
@@ -316,6 +439,8 @@ window.RunCradleGraph = (() => {
       svg.append(g);
     }
     container.append(svg);
+    renderCache.set(container, { key, svg });
+    updateFacts(container, display, facts, false);
     setZoom(container, Number(container.dataset.zoom) || 1);
     return svg;
   }

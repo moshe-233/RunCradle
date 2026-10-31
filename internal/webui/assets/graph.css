@@ -18,7 +18,7 @@
   fill: var(--muted, #58677e);
 }
 .edge.waiting path {
-  stroke: var(--warning, #946015);
+  stroke: var(--waiting, var(--warning, #946015));
 }
 .edge.satisfied path {
   stroke: var(--success, #23744c);
@@ -28,7 +28,7 @@
   stroke-dasharray: 3 5;
 }
 .graph-node > rect:first-of-type {
-  fill: var(--surface, #fff);
+  fill: var(--node-surface, var(--surface, #fff));
   stroke: var(--border, #dce3ed);
   stroke-width: 1.2;
 }
@@ -38,13 +38,13 @@
   pointer-events: none;
 }
 .graph-node .node-title {
-  font-size: 19px;
+  font-size: 15px;
   font-weight: 650;
 }
 .graph-node .node-name,
 .graph-node .node-command {
   font:
-    15px ui-monospace,
+    12px ui-monospace,
     monospace;
 }
 .graph-node .node-name {
@@ -68,7 +68,7 @@
   fill: var(--muted);
 }
 .running .state-dot {
-  fill: var(--accent);
+  fill: var(--running, var(--accent));
   animation: breathe 1.8s ease-in-out infinite;
 }
 .completed .state-dot {
@@ -78,7 +78,7 @@
   fill: var(--danger);
 }
 .pending .state-dot {
-  fill: var(--warning);
+  fill: var(--waiting, var(--warning));
 }
 .graph-node.failed .state-pill {
   fill: var(--danger-soft);
@@ -169,6 +169,38 @@
   *::before,
   *::after {
     animation: none !important;
+    transition: none !important;
+  }
+}
+
+.graph-node .node-unapplied {
+  fill: var(--warning);
+  font-size: 11px;
+}
+
+.graph-node > rect:first-of-type,
+.state-pill,
+.edge path {
+  transition:
+    stroke var(--motion-fast, 160ms),
+    fill var(--motion-fast, 160ms);
+}
+.node-quick,
+.node-add {
+  transition: opacity var(--motion-fast, 160ms);
+}
+@media (hover: none) {
+  .node-quick,
+  .node-add {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .graph-node > rect:first-of-type,
+  .state-pill,
+  .edge path,
+  .node-quick,
+  .node-add {
     transition: none !important;
   }
 }
