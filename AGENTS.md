@@ -1,54 +1,29 @@
-# AGENTS.md — RunCradle Engineering Contract
+# AGENTS.md -- RunCradle Engineering Charter
 
-## 1. Project Overview & Architecture Baseline
-RunCradle is a deterministic CLI tool and WebUI workbench (`module runcradle`) written in Go, wrapping **Process Compose (`v1.122.0`)**. It turns process orchestration into a spatial, zero-JSON interactive workbench and CLI while strictly isolating configuration state, observed process execution, engine exit codes, and scoped cleanup.
+> **Pragmatic Escape Hatch**: Rules serve delivery, not dogma. Current project constraints and the developer's explicit instruction always take top priority; state any trade-off in one sentence and adapt pragmatically.
 
-### Directory Topography (Standard Go Layout)
-* `cmd/runcradle/`: Main application entry point.
-* `internal/`: Private Go packages strictly isolated by the compiler.
-  * `cli/`: CLI commands and flags parsing.
-  * `engine/`: Execution engine interface and state machine.
-  * `httpapi/`: REST API handlers and route definitions.
-  * `nodeexec/`: Native execution and process tree monitoring.
-  * `processcompose/`: Process Compose bridge and CLI adapter.
-  * `service/`: Core workflow execution orchestrator.
-  * `webui/`: Embedded WebUI assets and HTTP handlers.
-  * `workflow/`: Core domain types, YAML parser, and schema validations.
-* `docs/`: Technical specification (single source of truth).
-  * `ARCHITECTURE.md`: Engine contracts, state machine transitions, and package dataflow.
-  * `DEVELOPMENT.md`: Build steps, dependency setup, and test execution guide.
-  * `USER_GUIDE.md`: CLI arguments, exit codes, and HTTP API endpoints.
-  * `WORKFLOW_FORMAT.md`: Schema, UI annotations, and revision algorithms.
-  * `archive/`: Historical records and deprecated workspace migrations.
-* `tests/`: End-to-end integration tests (`tests/integration/`) and web tests (`tests/web/`).
-* `examples/`: Canonical sample workflow configurations.
+## 1. Positioning & Modes (`module runcradle`)
+Deterministic Go CLI, loopback WebUI workbench, and Agent-ready tool interface on Linux `amd64` (non-root, Go `>= 1.26.0`, zero runtime LLM/Node.js dependency). Package topography and documentation links are indexed in `README.md`.
+- **Mode A -- Wrap (Engine Baseline)**: Pinned **Process Compose `v1.122.0`** is an external binary. Never fork, vendor, or re-implement its scheduler; wrap via input whitelist, isolated temp dir/UDS, `context.Context` deadlines, and `runcradle _exec` (`internal/nodeexec`) exit/signal receipts.
+- **Mode B -- Port (Owned Primitives)**: Build small, self-contained mechanisms (~30-100 lines, `Input -> Transform -> Output`) with Go stdlib or vanilla browser APIs. Restrict dependencies to `go.mod` and zero frontend frameworks/bundlers.
+- **Mode C -- Skill (Agent Workflow)**: Expose thin CLI subcommands (`internal/cli` -> `internal/hostclient`) + token-budgeted `SKILL.md` playbooks; never embed LLM SDKs or bypass `.runcradle/` APIs.
 
----
+## 2. Core Engineering Invariants
+1. **Standalone-First & Explicit Wiring**: Capabilities must work as standalone terminal commands before Agent integration. Wire dependencies explicitly in `cmd/runcradle/main.go` (sole `os.Exit`, zero `init()` magic).
+2. **Model-Friendly ACI**: Validate inputs at boundaries (`internal/workflow`, `DisallowUnknownFields`, `os.Root`). Never prompt on stdin; enforce explicit timeouts. Bound CLI JSON output to `<= 4096 Bytes` (`internal/output`) with pagination, deterministic exit codes (`0` ok, `1` target failed, `2` config/409/429/no-host, `124` timeout, `125` internal/unknown, `128+N` signal), and `next_action`.
+3. **Zero Silent Failures & Layered Facts**: Never swallow errors. Keep `state`, `health`, `_exec` `exit_code`/`signal`, `engine_exit_code`, `history_integrity` (`complete|gap|truncated`), and `cleanup` (`complete|unknown`) separate; never guess unknown states or write back to user source files (save strictly to `.runcradle/` CAS with `expected_revision`).
+4. **Hermetic Hygiene & Docs Boundary**: Keep builds/caches in `.work/` and `.cache/`. Restrict `cleanup=complete` to `registered_process_groups` and private temp dirs (never kill by historical PID/port/name). Keep `docs/` git-ignored (never `git add -f`); keep `packaging/README.md` free of repo-only relative links.
 
-## 2. Developer Operational Commands
-All operations are self-contained and reproducible via `Makefile`:
-
+## 3. Operational Commands (`Makefile`)
 ```bash
-# 1. Static checks, linting, and formatting check
-make fmt-check vet check-tree
-
-# 2. Run unit tests
-make unit-test
-
-# 3. Build executable binary into .work/bin/runcradle
-make build
-
-# 4. Run full verification suite (fmt, vet, unit, build)
-make verify
-
-# 5. Run real engine integration tests
-make integration-test
+make prepare prepare-web-test            # Pinned engine (v1.122.0) + dev browser tools
+make fmt-check vet check-tree unit-test  # Fast static checks + package unit tests
+make build integration-test              # Build .work/bin/runcradle + real-engine tests
+make verify web-test                     # Full Go gate (incl. -race) + 7 Playwright suites
+make package-unit-test && make package VERSION=0.1.0-dev # Offline Linux amd64 bundle
 ```
 
----
-
-## 3. Engineering Invariants & Code Standards
-1. **Explicit Composition**: `cmd/runcradle/main.go` explicitly initializes dependencies; no magic auto-registration.
-2. **Defensive Boundaries**: External input (YAML/JSON from HTTP or CLI) must be validated at the boundary (`internal/workflow`) before reaching services.
-3. **Hermetic Builds**: Build artifacts and cache are strictly scoped to `.work/` and `.cache/` (git-ignored); never pollute the workspace root.
-4. **Single Source of Truth**: When modifying CLI arguments, schemas, or engine contracts, update the matching documentation in `docs/` within the same commit.
+## 4. AI Collaboration Rules
+1. **Concrete Code Entities Only**: Ban vague buzzwords ("orchestration middleware", "execution orchestrator"). Name exact file paths, function signatures, structs, CLI flags, HTTP routes, and exit codes.
+2. **Verifiable Micro-Steps**: Work in 30-60 min increments (~20-50 lines of core logic). State data flow, error branches, and system side effects in 3-5 bullets before multi-file edits; never dump black-box boilerplate.
+3. **Guided Debugging & Git Safety**: Trace the 20% main path; debug via *root mechanism -> exact observation point -> minimal fix* so the developer keeps full control. Inspect live Git state first, never auto-commit/push/reset without approval, and keep automated tests distinct from human acceptance.

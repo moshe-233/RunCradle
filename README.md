@@ -94,17 +94,16 @@ mkdir -p ./.work
 
 ## 文档导航
 
-正式集成测试与前端测试分别位于 `tests/integration/`、`tests/web/`。
-完整参考文档统一在 [docs/](docs/README.md) 管理。
+集成测试与浏览器自动化测试分别位于 `tests/integration/`、`tests/web/`。
+
+- **仓内文档**：[AI 协同工程宪章 (`AGENTS.md`)](AGENTS.md) · [目录发行包说明 (`packaging/README.md`)](packaging/README.md) · [三节点 HTTP 样例 (`examples/w3-http/README.md`)](examples/w3-http/README.md) · [Apache-2.0](LICENSE) · [第三方声明](THIRD_PARTY_NOTICES.md)
+- **本地详细技术规范**（统一在本地忽略目录 [docs/](docs/README.md) 维护，不随 Git 入库）：
 
 | 我想要…… | 阅读文档 |
 | :--- | :--- |
-| 了解当前开发阶段与下一步施工计划 | [路线与当前进度 (ROADMAP.md)](docs/ROADMAP.md) |
-| 查阅系统架构设计与包数据流 | [架构与契约 (ARCHITECTURE.md)](docs/ARCHITECTURE.md) |
-| 查阅 CLI 参数、退出码、HTTP/SSE 接口与浏览器操作 | [使用指南 (USER_GUIDE.md)](docs/USER_GUIDE.md) |
-| 本地开发、环境搭建与测试指南 | [开发与验证指南 (DEVELOPMENT.md)](docs/DEVELOPMENT.md) |
-| 工作流 Schema 与版本算法规范 | [工作流格式 (WORKFLOW_FORMAT.md)](docs/WORKFLOW_FORMAT.md) |
-| 确认支持范围和系统预算 | [支持矩阵 (SUPPORT.md)](docs/SUPPORT.md) |
-| 查看验收标准和历史证据 | [验收与证据索引 (EVIDENCE.md)](docs/EVIDENCE.md) |
-
-[Apache-2.0](LICENSE) · [第三方声明](THIRD_PARTY_NOTICES.md)
+| 查看本地文档总索引、源码路径映射与历史归档 | [技术文档中心 (`docs/README.md`)](docs/README.md) |
+| 查阅核心数据流、模块拓扑、`Engine`/`_exec` 契约与系统硬预算 | [架构与系统边界 (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md) |
+| 查阅原生配置白/黑名单、`ui.json` Schema、AST 编辑与 `revision` | [工作流格式规范 (`docs/WORKFLOW_FORMAT.md`)](docs/WORKFLOW_FORMAT.md) |
+| 查阅 CLI 参数、退出码、工作台操作、`.runcradle/` 与 `/api/v1` 接口 | [使用指南与接口手册 (`docs/USER_GUIDE.md`)](docs/USER_GUIDE.md) |
+| 查阅环境准备、7 套件浏览器测试、双工具链验收与三条代码阅读路径 | [开发与验证指南 (`docs/DEVELOPMENT.md`)](docs/DEVELOPMENT.md) |
+| 了解阶段路线（W0–W7）、待验收项、`OBS` 观察项与历史证据索引 | [路线进度与证据索引 (`docs/ROADMAP.md`)](docs/ROADMAP.md) |
