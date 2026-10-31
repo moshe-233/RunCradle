@@ -3,6 +3,7 @@
 /.cache/
 /.work/
 /docs/
+/AGENTS.md
 **/.runcradle/
 **/__pycache__/
 /.agents/

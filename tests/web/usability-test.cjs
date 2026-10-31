@@ -16,7 +16,7 @@ const { chromium } = require(
 );
 const phase = process.argv[2] || "all";
 const screenshotRoot =
-  process.env.RUNCRADLE_SCREENSHOTS || "/tmp/runcradle-frontend";
+  process.env.RUNCRADLE_SCREENSHOTS || path.join(root, "screenshots");
 fs.mkdirSync(screenshotRoot, { recursive: true });
 fs.mkdirSync(path.join(root, "tmp"), { recursive: true });
 const dir = fs.mkdtempSync(path.join(root, "tmp/frontend-"));

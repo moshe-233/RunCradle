@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-allow='^(cmd|internal|tests|examples|packaging|third_party|scripts|\.github)/|^(go\.mod|go\.sum|Makefile|README\.md|AGENTS\.md|LICENSE|THIRD_PARTY_NOTICES\.md|\.gitignore|\.gitattributes)$'
+allow='^(cmd|internal|tests|examples|packaging|third_party|scripts|\.github)/|^(go\.mod|go\.sum|Makefile|README\.md|CONTRIBUTING\.md|CHANGELOG\.md|LICENSE|THIRD_PARTY_NOTICES\.md|\.gitignore|\.gitattributes)$'
 bad=$(git ls-files --cached --others --exclude-standard | grep -Ev "$allow" || true)
 if [[ -n $bad ]]; then
   echo "check-tree: non-product files found in repository root:" >&2

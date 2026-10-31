@@ -139,6 +139,6 @@ RUNCRADLE_BUNDLE_ARCHIVE="$PWD/.work/dist/runcradle-0.1.0-linux-amd64.tar.gz" ma
 | `tests/integration`、`tests/web` | 真实引擎集成测试与浏览器测试 |
 | `packaging`、`scripts`、`third_party` | 发行文档、构建脚本与依赖许可证 |
 
-工程约定见 [AGENTS.md](AGENTS.md)。维护者的 `docs/` 是本地忽略目录，保存详细规范与历史证据，不属于公开发行内容。
+独立检出、开发环境、验证命令和文件归属见 [开发指南](CONTRIBUTING.md)。静态配置预览见 [HTTP 契约样例](examples/http-contract/README.md)。维护者的 `docs/` 与个人 `AGENTS.md` 在本地维护，不随源码分发。
 
 RunCradle 使用 [Apache-2.0](LICENSE) 许可证。随包引擎与依赖的许可证、来源和版权信息见[第三方声明](THIRD_PARTY_NOTICES.md)。

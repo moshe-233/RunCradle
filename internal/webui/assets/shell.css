@@ -1190,7 +1190,7 @@ body.sidebar-collapsed #sidebar {
   padding: 4px;
 }
 
-/* Motion references and adaptations: docs/design/webui-style/MOTION_2026_10_30.md. */
+/* Controls share motion tokens; reduced-motion overrides are defined below. */
 button {
   transition:
     background-color var(--motion-fast) var(--motion-ease),
