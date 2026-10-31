@@ -1,137 +1,144 @@
 # RunCradle
 
-**把 Process Compose 原生 JSON/YAML 变成可编辑、可保存、可运行、可复用的确定性 WebUI 工作台与 CLI 工具。**
+**在本地浏览器中编辑、保存和运行 Process Compose 工作流，也能通过 CLI 和 API 完成同样的操作。**
 
-- **集成模式（Mode A · Wrap）**：以固定版本的 **Process Compose `v1.122.0`** 作为唯一执行内核。RunCradle 负责配置解析、零 JSON 门槛的 AST/UI 保真协同编辑、不可变版本库（CAS）、确定性动态流图工作台渲染与直接子进程退出回执（`_exec`），不重复造调度器。
-- **人机同构，零模型依赖**：日常导入、编辑、保存、运行和排障 **100% 无需调用大模型**。人类与 Agent 共用同一套原生配置文件、不可变 `revision` 与本地服务接口。
-- **运行环境**：Linux `amd64`、非 root、构建要求 Go `>= 1.26.0`。前端（HTML/CSS/JS/SVG）内嵌于单二进制中，运行时无需 Node.js（Node 仅用于开发期浏览器自动化测试）。
+RunCradle 把工作流配置、依赖图、运行参数和执行记录放在一个工作台里。它使用固定版本的 Process Compose `v1.122.0` 执行任务，提供版本保存、运行观察和直接子进程退出回执。日常使用无需调用大模型。
 
----
+[下载 v0.1.0](https://github.com/moshe-233/RunCradle/releases/tag/v0.1.0) · [发布说明](packaging/RELEASE_NOTES.md) · [安装与使用手册](packaging/README.md) · [HTTP 样例](examples/w3-http/README.md)
 
-## 目录发行包（Linux amd64）
+## 可以做什么
 
-本地可用 `make package VERSION=0.1.0-dev` 生成包含 `runcradle`、`libexec/process-compose`、校验清单、许可证与自检样例的目录归档（默认要求干净工作树，需先 `make prepare` 准备依赖）。完整解压后直接运行：
+- **编辑工作流**：导入单个 Process Compose JSON/YAML 文件，在依赖图、节点表单和源码之间切换；用可选的 `ui.json` 定义参数、绑定和预设。
+- **保存与复用**：将配置保存为工作区私有库中的不可变版本；运行绑定具体版本，后续编辑不会改变已有运行。保存不覆盖导入的源文件，配置通过 ZIP 显式导出。
+- **查看执行结果**：选择目标节点，观察依赖关系、节点状态和事件；分别查看业务进程退出码、引擎退出码、历史完整性与清理结果。宿主退出后仍可查询本地历史。
+- **接入脚本和 Agent**：使用有大小上限的 CLI JSON 回执，或通过 `/api/v1` HTTP/JSON 与 SSE 接口接入。二进制自带能力发现和 OpenAPI 文档。
+
+## 安装与首次运行
+
+正式发行包支持 **Linux amd64、普通用户运行**，包含 RunCradle、固定版本的 Process Compose、许可证和自检样例。无需安装 Go、Node.js 或系统级 Process Compose；工作流自身需要的 Python、Docker 等工具仍需自行准备。
+
+从 [v0.1.0 Release](https://github.com/moshe-233/RunCradle/releases/tag/v0.1.0) 下载以下两个文件，放在同一目录：
+
+- `runcradle-0.1.0-linux-amd64.tar.gz`
+- `runcradle-0.1.0-linux-amd64.tar.gz.sha256`
+
+校验、解压并启动自检工作区：
 
 ```bash
-/path/to/runcradle-0.1.0-dev-linux-amd64/runcradle serve --workspace /path/to/project
+sha256sum -c runcradle-0.1.0-linux-amd64.tar.gz.sha256
+tar -xzf runcradle-0.1.0-linux-amd64.tar.gz
+cd runcradle-0.1.0-linux-amd64
+
+./runcradle version
+mkdir -p "$HOME/runcradle-demo"
+cp examples/hello.yaml "$HOME/runcradle-demo/hello.yaml"
+./runcradle serve --workspace "$HOME/runcradle-demo"
 ```
 
-无需另装 Process Compose 或传引擎路径；安装损坏会在打开工作区前拒绝启动，不回退到系统引擎。安装、只读目录、命令软链接和并列升级见 [发行包说明](packaging/README.md)。这是一项本地制包能力，尚未发布远端 release。
+`serve` 在前台运行。用浏览器打开启动 JSON 中的 `pairing_url` 完成一次性配对，然后导入 `hello.yaml`、保存版本、选择 `success` 节点运行。配对链接包含临时凭据，请勿公开。
 
-## 快速上手（3 步跑通闭环）
-
-所有命令均在仓库根目录下执行：
-
-### 1. 构建并准备固定内核
+另开终端，进入同一发行包目录，也可以直接运行：
 
 ```bash
-make build prepare
+./runcradle workflow run \
+  --workspace "$HOME/runcradle-demo" \
+  --file hello.yaml --target success --request-id hello-success
+
+./runcradle workflow inspect \
+  --workspace "$HOME/runcradle-demo" \
+  --request-id hello-success --node success
 ```
 
-### 2. 启动显式本地宿主（WebUI & API）
+`success` 节点的真实退出码为 `0`。将目标换为 `failure`，并使用新的 `--request-id hello-failure`，可验证失败路径：节点退出码为 `7`，`workflow run` 命令退出码为 `1`。同一个 request ID 用于重试同一次调用；想发起新运行，应使用新的 ID。
+
+**保留完整安装目录。** `runcradle` 会校验随包引擎和清单；只拷贝主程序不构成有效安装。软链接安装、离线使用、升级和回退见[发行包手册](packaging/README.md)。
+
+## 常用命令
+
+以下命令假定 `runcradle` 已通过软链接加入 `PATH`；也可以换成二进制的完整路径。
+
+| 目的 | 命令 | 是否需要 `serve` |
+| --- | --- | --- |
+| 查看命令参数 | `runcradle help` | 否 |
+| 静态校验配置 | `runcradle workflow validate --workspace DIR --file FILE` | 否 |
+| 导出只读依赖图 | `runcradle workflow render --workspace DIR --file FILE --out graph.html` | 否 |
+| 启动工作台 | `runcradle serve --workspace DIR` | 命令本身启动宿主 |
+| 运行指定节点 | `runcradle workflow run --workspace DIR --file FILE --target NODE --request-id ID` | 是 |
+| 查询运行与历史 | `runcradle workflow inspect --workspace DIR --request-id ID` | 否，也可读取活动运行 |
+| 停止活动运行 | `runcradle workflow stop --workspace DIR --run-id RUN_ID` | 是 |
+
+`--file`、`--ui` 和 API 的输入/输出文件路径相对于工作区解析。`validate` 默认只做静态检查；加 `--check-engine` 才调用固定引擎做加载检查。静态校验通过不代表业务命令会成功。导出的 HTML 不具备执行权限。
+
+## 脚本与 Agent 接入
 
 ```bash
+# 离线查看版本、能力和预算，导出随二进制携带的 OpenAPI 3.1.1
+runcradle api describe
+runcradle api schema --workspace /path/to/project --out openapi.json
+
+# serve 启动后，检查连接并查询工作流库
+runcradle api status --workspace /path/to/project
+runcradle api request --workspace /path/to/project \
+  --path '/api/v1/workflows?limit=10' --out workflows-response.json
+
+# 提交后立即返回，再用同一个 request ID 查询
+runcradle workflow run --workspace /path/to/project \
+  --file process-compose.yaml --target build --request-id build-001 --detach
+runcradle workflow inspect --workspace /path/to/project --request-id build-001
+```
+
+API 主版本为 `v1`，契约版本为 `1.0.0`。JSON 回执最多 4096 字节；`api request` 把完整响应写入工作区中的新文件，支持 `GET`、`POST`、`PUT`。输出文件已存在时会拒绝执行。`--detach` 返回 `0` 只表示宿主已受理，任务结果须继续查询；网络中断也不代表任务未启动。
+
+认证、错误处理、事件恢复和兼容规则见[接入说明](packaging/README.md#脚本与-agent-接入)。RunCradle 提供通用 CLI/HTTP/SSE 接口；Agent 插件、MCP 服务和语言 SDK 需由接入方实现。
+
+## 使用边界
+
+- **工作区与宿主**：每个工作区最多一个显式启动的 `serve`，仅监听 `127.0.0.1`。缺少宿主时，运行命令退出 `2`。关闭网页或断开观察连接不会停止任务；向宿主发送 `SIGINT`/`SIGTERM` 会触发有序收尾，总预算为 12 秒。
+- **配置支持**：当前运行入口支持单文件配置的受限子集；多文件合并、`extends`、持续会话、自动触发和配置热更新尚未开放。未知字段的保留与是否可执行是两件事，以校验结果和 `run_supported` 为准。
+- **执行权限**：任务使用当前用户权限运行。RunCradle 不提供容器沙箱；`cleanup=complete` 只覆盖已登记进程组与私有临时目录，不承诺回收自行脱离管理的进程。
+- **运行事实**：历史可能是 `complete`、`gap` 或 `truncated`。不要只凭节点颜色判断成功，也不要把引擎退出码当作业务进程退出码。已知观察项见[发布说明](packaging/RELEASE_NOTES.md)。
+
+## 从源码构建
+
+需要 Linux amd64、非 root 用户和 Go `>= 1.26.0`。Node.js 只用于开发期浏览器测试；产品构建和运行不依赖 Node.js。
+
+```bash
+git clone https://github.com/moshe-233/RunCradle.git
+cd RunCradle
+make prepare build
+
 ./.work/bin/runcradle serve \
   --workspace examples/w3-http \
   --process-compose "$PWD/.cache/process-compose/v1.122.0/process-compose"
 ```
 
-1. **浏览器配对**：终端前台会输出一行包含 `pairing_url` 的 JSON。在浏览器打开该链接完成一次性配对（配对后自动擦除 URL 凭据并换取 `HttpOnly` 会话 Cookie）。
-2. **导入与首跑**：在页面「导入工作流」填入 `process-compose.yaml` 与 `ui.json` → 预览并保存版本 → 选择目标节点 `check` 点击运行。默认参数下 `check` 节点真实退出码为 `7`（预期失败演示，样例需系统装有 `python3`，详见 [样例说明](examples/w3-http/README.md)）。
-3. **修改与复用**：将 `ui.json` 中 `exit_code` 的默认值改为 `0` 并保存新版本（或直接选择 `success` 预设），再次运行即可观察到成功退出 `0`。
-
-### 3. 使用 CLI 连接同一宿主或离线校验
-
-保持 `serve` 在终端一运行，打开终端二执行 CLI 操作：
+这个三节点 HTTP 样例需要 `python3`，默认演示节点退出 `7`；选择 `success` 预设可验证成功路径，操作见[样例说明](examples/w3-http/README.md)。源码构建显示开发版本；发行包的版本和源码提交由制包脚本注入。
 
 ```bash
-# 提交运行（固定 request-id 保证幂等，重复调用仅返回已有运行结果，不重复执行）
-./.work/bin/runcradle workflow run \
-  --workspace examples/w3-http \
-  --file process-compose.yaml \
-  --ui ui.json \
-  --target check \
-  --preset success \
-  --request-id first-success
+# 完整 Go 验证（含真实引擎、race、模块校验与构建）及 7 套浏览器测试
+make prepare prepare-web-test
+make verify web-test
 
-# 查询运行快照与节点详情（宿主关闭后仍可离线读取历史）
-./.work/bin/runcradle workflow inspect \
-  --workspace examples/w3-http \
-  --request-id first-success \
-  --node check
-
-# 停止活动运行（仅限当前宿主持有的运行）
-./.work/bin/runcradle workflow stop --workspace examples/w3-http --run-id <RUN_ID>
+# 从干净工作树生成并验证离线目录包
+make package-unit-test
+make package VERSION=0.1.0
+RUNCRADLE_BUNDLE_ARCHIVE="$PWD/.work/dist/runcradle-0.1.0-linux-amd64.tar.gz" make package-test
 ```
 
-**离线静态校验与无权限 HTML 导出**（无需启动 `serve`，不调用内核、不执行业务命令）：
+构建和测试产物写入 `.work/`，缓存写入 `.cache/`。制包要求依赖已准备完毕，拒绝脏工作树和覆盖已有归档。开发候选包可显式传 `PACKAGE_FLAGS='--allow-dirty --out .work/dist-candidate'`，其清单会标记源码未提交。
 
-```bash
-./.work/bin/runcradle workflow validate \
-  --workspace . \
-  --file examples/http-contract/process-compose.yaml \
-  --ui examples/http-contract/ui.json
+## 源码导航
 
-mkdir -p ./.work
-./.work/bin/runcradle workflow render \
-  --workspace . \
-  --file examples/http-contract/process-compose.yaml \
-  --ui examples/http-contract/ui.json \
-  --out ./.work/http-contract.html
-```
+| 目录 | 职责 |
+| --- | --- |
+| `cmd/runcradle`、`internal/cli`、`internal/hostclient` | 程序入口、CLI 与本地宿主客户端 |
+| `internal/workflow`、`internal/runs` | 配置解析、结构化编辑、版本库与运行记录 |
+| `internal/service`、`internal/engine` | 运行受理、生命周期与执行结果 |
+| `internal/processcompose`、`internal/nodeexec` | 固定引擎适配与业务子进程退出回执 |
+| `internal/httpapi`、`internal/protocol`、`internal/webui` | HTTP/SSE 契约、OpenAPI 与内嵌前端 |
+| `tests/integration`、`tests/web` | 真实引擎集成测试与浏览器测试 |
+| `packaging`、`scripts`、`third_party` | 发行文档、构建脚本与依赖许可证 |
 
-> 若需调用固定内核做加载期 dry-run，可显式追加 `--check-engine --process-compose <PATH>`。
+工程约定见 [AGENTS.md](AGENTS.md)。维护者的 `docs/` 是本地忽略目录，保存详细规范与历史证据，不属于公开发行内容。
 
----
-
-## 核心工程契约（Invariants）
-
-1. **私有库为主存储，源文件零污染**：导入仅读取预览，保存写入 `.runcradle/` 私有库并强制校验 `expected_revision`（冲突返回 `409` 并保留草稿），绝不回写用户源文件。配置导出 ZIP 仅含原生配置与可选 `ui.json`。
-2. **显式前台宿主生命周期**：每个工作区由独占锁限定最多一个 `serve` 宿主（仅监听 `127.0.0.1`）。关闭网页或断开 CLI 不会中断运行中的任务；终端发送 `SIGINT`/`SIGTERM` 时，宿主在 12 秒总预算内有序停止自己持有的运行实例。`workflow run` 缺宿主时直接报错退出 `2`，绝不暗启后台守护进程。
-3. **事实分层，未知保持未知**：节点真实退出码/信号（由 `_exec` 捕获）、引擎退出码、I/O 状态、历史完整性（`complete`/`gap`/`truncated`）和清理状态分别记录。`cleanup=complete` 严格限定于已登记原生进程组（`registered_process_groups`）与私有临时目录，不承诺沙箱隔离，也绝不按历史 PID 或端口去杀死未知进程。
-
----
-
-## 独立接入层的公共入口
-
-本仓库提供 CLI JSON、loopback HTTP/JSON 与 SSE 契约。各 Agent 的插件、MCP 转换和安装配置可以在独立仓库实现；无需导入 Go `internal` 包或直接修改 `.runcradle/` 数据。
-
-```bash
-# 离线查看协议版本、能力与预算；导出随二进制携带的 OpenAPI 3.1.1
-./.work/bin/runcradle api describe
-./.work/bin/runcradle api schema --workspace . --out .work/runcradle-openapi.json
-
-# 检查显式启动的工作区宿主（只显示连接信息与凭据文件位置，不显示 Token）
-./.work/bin/runcradle api status --workspace examples/w3-http
-
-# 调用完整 HTTP 能力；--out 必须是工作区内的新文件
-./.work/bin/runcradle api request --workspace examples/w3-http \
-  --path '/api/v1/workflows?limit=10' --out workflows-response.json
-
-# 非阻塞提交：exit 0 仅表示受理；用固定 request-id 查询和恢复
-./.work/bin/runcradle workflow run --workspace examples/w3-http \
-  --file process-compose.yaml --ui ui.json --target check --preset success \
-  --request-id adapter-first-run --detach
-```
-
-`api request` 支持 `GET`、`POST`、`PUT`；写操作通过 `--input` 读取工作区内 JSON 文件，完整响应写到 `--out`，标准输出只返回不超过 4 KiB 的 JSON 回执。请求失败时保留 HTTP 状态、稳定 `code`、已知运行身份与 `next_action`；不会自动重试写操作。实时事件由接入层直接消费 SSE，CLI 可使用同一事件入口分页查询。
-
-在线协议说明为 `GET /api/v1/protocol` 与 `GET /api/v1/openapi.json`，沿用本地 Bearer 鉴权。详细使用与兼容策略见本地 [公共协议与接入边界](docs/INTEGRATION_API.md)。
-
----
-
-## 文档导航
-
-集成测试与浏览器自动化测试分别位于 `tests/integration/`、`tests/web/`。
-
-- **仓内文档**：[AI 协同工程宪章 (`AGENTS.md`)](AGENTS.md) · [目录发行包说明 (`packaging/README.md`)](packaging/README.md) · [三节点 HTTP 样例 (`examples/w3-http/README.md`)](examples/w3-http/README.md) · [Apache-2.0](LICENSE) · [第三方声明](THIRD_PARTY_NOTICES.md)
-- **本地详细技术规范**（统一在本地忽略目录 [docs/](docs/README.md) 维护，不随 Git 入库）：
-
-| 我想要…… | 阅读文档 |
-| :--- | :--- |
-| 查看本地文档总索引、源码路径映射与历史归档 | [技术文档中心 (`docs/README.md`)](docs/README.md) |
-| 查阅核心数据流、模块拓扑、`Engine`/`_exec` 契约与系统硬预算 | [架构与系统边界 (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md) |
-| 查阅原生配置白/黑名单、`ui.json` Schema、AST 编辑与 `revision` | [工作流格式规范 (`docs/WORKFLOW_FORMAT.md`)](docs/WORKFLOW_FORMAT.md) |
-| 查阅 CLI 参数、退出码、工作台操作、`.runcradle/` 与 `/api/v1` 接口 | [使用指南与接口手册 (`docs/USER_GUIDE.md`)](docs/USER_GUIDE.md) |
-| 查阅环境准备、7 套件浏览器测试、双工具链验收与三条代码阅读路径 | [开发与验证指南 (`docs/DEVELOPMENT.md`)](docs/DEVELOPMENT.md) |
-| 了解阶段路线（W0–W7）、待验收项、`OBS` 观察项与历史证据索引 | [路线进度与证据索引 (`docs/ROADMAP.md`)](docs/ROADMAP.md) |
+RunCradle 使用 [Apache-2.0](LICENSE) 许可证。随包引擎与依赖的许可证、来源和版权信息见[第三方声明](THIRD_PARTY_NOTICES.md)。
