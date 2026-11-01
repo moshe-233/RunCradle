@@ -1,6 +1,6 @@
 # RunCradle
 
-本检出用于 DSH 插件接入开发，分支为 `feat/dsh-plugin`，跟踪 `origin/feat/dsh-plugin`。源码已同步到远端基线 `143fd17`；当前只完成源码和工作区准备，插件尚未实现。下方保留 RunCradle 独立产品的说明与使用方法。
+本检出用于 DSH 插件接入开发，分支为 `feat/dsh-plugin`，跟踪 `origin/feat/dsh-plugin`。当前只完成源码和工作区准备，插件尚未实现。下方保留 RunCradle 独立产品的说明与使用方法。
 
 ## 本地接入工作区与文档索引
 
@@ -16,9 +16,9 @@
 | [当前状态](workspace/STATUS.md) | 当前阶段、分支、命令可用状态与下一步 | 工作单元结束时 |
 | [交接卡](workspace/HANDOFF.md) | 基础提交、验证结果、文件变化、风险和接续目标 | 交接或暂停时 |
 | [验收记录](workspace/ACCEPTANCE.md) | 已执行的检查、退出码、限制与人工确认 | 验证或验收后 |
-| [共享开发指南](CONTRIBUTING.md) | 原项目开发环境、验证与文件归属 | 工具链或共享开发规则变化时 |
+| [本地开发指南](docs/CONTRIBUTING.md) | 开发环境、验证与文件归属 | 工具链或开发规则变化时 |
 
-AGENTS 与 workspace 是本检出的本地材料，已由忽略规则排除，不随源码提交或插件包分发。根 README 中这一节为本地工作区说明，本轮尚未提交；未来发布前应与公共产品说明区分。`packaging/README.md` 和示例 README 是产品使用文档，保留它们的独立用途；本地协作目录不另设 README 索引。
+`docs/` 存放项目长期文档，`workspace/` 存放本检出的协作状态、交接和验收资料；两者与 AGENTS 均为 Git 忽略的本地材料，不随源码提交或插件包分发。根 README 中这一节为本地工作区说明，未来发布前应与公共产品说明区分。`packaging/README.md` 和示例 README 是产品使用文档，保留它们的独立用途；本地文档目录不另设 README 索引。
 
 ## 接入开发目录
 
@@ -26,7 +26,8 @@ AGENTS 与 workspace 是本检出的本地材料，已由忽略规则排除，�
 dsh-runcradle/
 ├── README.md                         # 产品说明与本工作区统一索引
 ├── AGENTS.md                         # 本地长期契约，Git 忽略
-├── CONTRIBUTING.md                   # 共享开发指南
+├── docs/                             # 项目长期文档，Git 忽略
+│   └── CONTRIBUTING.md               # 本地开发指南
 ├── cmd/、internal/                   # 原有 Go 核心与内嵌 WebUI
 ├── integrations/
 │   └── dsh/                          # DSH 插件位置，当前仅目录占位
@@ -217,6 +218,6 @@ RUNCRADLE_BUNDLE_ARCHIVE="$PWD/.work/dist/runcradle-0.1.0-linux-amd64.tar.gz" ma
 | `packaging`、`scripts`、`third_party` | 发行文档、构建脚本与依赖许可证 |
 | `integrations/dsh` | DSH 插件的独立代码位置，当前仅预留目录 |
 
-独立检出、开发环境、验证命令和文件归属见 [开发指南](CONTRIBUTING.md)。静态配置预览见 [HTTP 契约样例](examples/http-contract/README.md)。维护者的 `docs/` 与个人 `AGENTS.md` 在本地维护，不随源码分发。
+独立检出、开发环境、验证命令和文件归属见 [本地开发指南](docs/CONTRIBUTING.md)。静态配置预览见 [HTTP 契约样例](examples/http-contract/README.md)。项目长期文档 `docs/` 与个人 `AGENTS.md` 在本地维护，不随源码分发。
 
 RunCradle 使用 [Apache-2.0](LICENSE) 许可证。随包引擎与依赖的许可证、来源和版权信息见[第三方声明](THIRD_PARTY_NOTICES.md)。
