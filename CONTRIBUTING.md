@@ -90,8 +90,10 @@ RUNCRADLE_BUNDLE_ARCHIVE="$PWD/.work/dist/runcradle-0.1.0-dev-linux-amd64.tar.gz
 | 产品说明与共享开发指南 | `README.md`、`CONTRIBUTING.md` | 是 |
 | 安装、发布与示例说明 | `packaging/`、各示例目录的 `README.md` | 是 |
 | 源码、测试、构建脚本、依赖许可证 | 对应产品目录 | 是 |
+| DSH 接入源码与随包资源 | `integrations/dsh/` | 是；当前仅预留目录 |
 | 构建产物、截图、临时计划和验证日志 | `.work/`；依赖缓存用 `.cache/` | 否 |
 | 维护者本地技术记录和历史归档 | `docs/` | 否 |
+| 本检出的协作状态、决策、验收与历史计划 | `workspace/`，统一从根 README 索引 | 否 |
 | 个人 Agent 说明与工具配置 | 根目录 `AGENTS.md`、`.agents/`、`.codex/` | 否 |
 
 目录检查见 [check-tree.sh](scripts/check-tree.sh)，忽略规则见 [.gitignore](.gitignore)。根目录允许共享的 `CONTRIBUTING.md` 和 `CHANGELOG.md`；如需增加其他公开文档目录，应同时调整目录白名单与忽略规则。不要把本地历史档案整批加入源码仓库。

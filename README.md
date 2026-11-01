@@ -1,5 +1,82 @@
 # RunCradle
 
+本检出用于 DSH 插件接入开发，分支为 `feat/dsh-plugin`，跟踪 `origin/feat/dsh-plugin`。源码已同步到远端基线 `143fd17`；当前只完成源码和工作区准备，插件尚未实现。下方保留 RunCradle 独立产品的说明与使用方法。
+
+## 本地接入工作区与文档索引
+
+根 README 统一项目说明、目录说明和文档入口。根 [AGENTS.md](AGENTS.md) 是长期稳定的本地工程契约；阶段、版本、命令可用状态和进度分别在本页与协作文档中维护。
+
+接续顺序：遵守 AGENTS → 阅读 [当前状态](workspace/STATUS.md) 与 [交接卡](workspace/HANDOFF.md) → 阅读 [已确认接入方向](workspace/DSH-INTEGRATION.md)。旧 v1.2 的独立安装与手动启动服务方案已被新的随包交付方向替代，不再直接执行其任务清单。
+
+| 文档 | 职责 | 更新时机 |
+| --- | --- | --- |
+| [AGENTS.md](AGENTS.md) | 长期授权边界、证据要求、验证纪律、最小变更与工作保护 | 长期规则变化时 |
+| [接入方向与准备范围](workspace/DSH-INTEGRATION.md) | 同仓接入、随包二进制、插件管理服务的已确认方向及待设计事项 | 范围或设计决定变化时 |
+| [协作约定](workspace/COLLABORATION.md) | 分工、任务流程、决策与方法论来源 | 协作方式变化时 |
+| [当前状态](workspace/STATUS.md) | 当前阶段、分支、命令可用状态与下一步 | 工作单元结束时 |
+| [交接卡](workspace/HANDOFF.md) | 基础提交、验证结果、文件变化、风险和接续目标 | 交接或暂停时 |
+| [验收记录](workspace/ACCEPTANCE.md) | 已执行的检查、退出码、限制与人工确认 | 验证或验收后 |
+| [共享开发指南](CONTRIBUTING.md) | 原项目开发环境、验证与文件归属 | 工具链或共享开发规则变化时 |
+
+AGENTS 与 workspace 是本检出的本地材料，已由忽略规则排除，不随源码提交或插件包分发。根 README 中这一节为本地工作区说明，本轮尚未提交；未来发布前应与公共产品说明区分。`packaging/README.md` 和示例 README 是产品使用文档，保留它们的独立用途；本地协作目录不另设 README 索引。
+
+## 接入开发目录
+
+```text
+dsh-runcradle/
+├── README.md                         # 产品说明与本工作区统一索引
+├── AGENTS.md                         # 本地长期契约，Git 忽略
+├── CONTRIBUTING.md                   # 共享开发指南
+├── cmd/、internal/                   # 原有 Go 核心与内嵌 WebUI
+├── integrations/
+│   └── dsh/                          # DSH 插件位置，当前仅目录占位
+├── tests/                            # 原有 Go 集成与浏览器测试
+├── packaging/、scripts/、third_party/ # 原有发行脚本、文档与许可证
+├── workspace/                        # 本地协作材料，Git 忽略
+│   ├── DSH-INTEGRATION.md
+│   ├── COLLABORATION.md
+│   ├── STATUS.md
+│   ├── HANDOFF.md
+│   ├── ACCEPTANCE.md
+│   └── archive/                      # v1.0、v1.1、v1.2 原文
+├── .work/                            # 本检出的构建与验证产物
+└── .cache/                           # 本检出的依赖缓存
+```
+
+用户已选择同仓接入并随插件携带完整 RunCradle 运行包，插件通过包内 CLI 调用并管理自己启动的服务。`integrations/dsh/` 目前仅有 `.gitkeep`；源码、测试、Skill 和打包资源的具体布局在实施计划修订时确定。二进制只进入构建和发行产物。
+
+本目录是独立 Git 仓库，不是原项目的 worktree，不共享索引、构建目录或缓存。原项目 `/home/mio/dev/lab/CICD-lab/RunCradle` 继续独立维护 `main`；后续通过远端同步源码，不从原检出直接写入本检出的产物。
+
+## 当前工程命令
+
+Go 核心已有工具链；本轮基础检查使用以下命令，具体结果见验收记录：
+
+```bash
+make fmt-check vet check-tree unit-test build package-unit-test
+```
+
+完整引擎集成、race 和浏览器检查按下方“从源码构建”与 CONTRIBUTING 执行，未执行的检查不声明通过。DSH 插件尚无 package.json、依赖或脚本，旧计划的 pnpm 命令不可执行。后续建立插件工程时，将实际命令补入本节。
+
+## 本地历史计划归档
+
+| 版本 | 入口 | 定位 |
+| --- | --- | --- |
+| v1.0 | [原文](workspace/archive/2026-10-31-runcradle-dsh-integration-plan-v1.0.md) | 初始接入设计，仅供追溯 |
+| v1.1 | [原文](workspace/archive/2026-10-31-runcradle-dsh-integration-plan-v1.1.md) | 权限、回执及恢复修订，仅供追溯 |
+| v1.2 | [原文](workspace/archive/2026-10-31-runcradle-dsh-delivery-plan-v1.2.md) | 轻量协作文档版；后被同仓随包交付方向替代 |
+
+2026-10-31，v1.0 由旧根 archive、v1.1 由旧根计划文件迁入 workspace/archive；v1.2 本次从 workspace 移入 archive。三份原文摘要如下：
+
+```text
+e534a1ec2e6f9e1d1ea1347b146f15c98715562b2d471c963907851bcb40d827  workspace/archive/2026-10-31-runcradle-dsh-integration-plan-v1.0.md
+fd6d6094af63db028578e09610dbe24cde9c900f0ecf05d422db71380198726d  workspace/archive/2026-10-31-runcradle-dsh-integration-plan-v1.1.md
+9788f787326ec329e70806218b76cf39a72a6f02d5e8b46fad7e850e5a1fe7d1  workspace/archive/2026-10-31-runcradle-dsh-delivery-plan-v1.2.md
+```
+
+v1.0 更早来自未带版本号的计划文件。冻结稿中的“当前有效”、相对链接和环境快照均为历史记录，导航以根 README 为准。后续正式实施计划另行修订；任务进度、验证事实和人工确认分别维护，不因目录准备完成而勾选插件任务。
+
+## RunCradle 独立产品
+
 **在本地浏览器中编辑、保存和运行 Process Compose 工作流，也能通过 CLI 和 API 完成同样的操作。**
 
 RunCradle 把工作流配置、依赖图、运行参数和执行记录放在一个工作台里。它使用固定版本的 Process Compose `v1.122.0` 执行任务，提供版本保存、运行观察和直接子进程退出回执。日常使用无需调用大模型。
@@ -138,6 +215,7 @@ RUNCRADLE_BUNDLE_ARCHIVE="$PWD/.work/dist/runcradle-0.1.0-linux-amd64.tar.gz" ma
 | `internal/httpapi`、`internal/protocol`、`internal/webui` | HTTP/SSE 契约、OpenAPI 与内嵌前端 |
 | `tests/integration`、`tests/web` | 真实引擎集成测试与浏览器测试 |
 | `packaging`、`scripts`、`third_party` | 发行文档、构建脚本与依赖许可证 |
+| `integrations/dsh` | DSH 插件的独立代码位置，当前仅预留目录 |
 
 独立检出、开发环境、验证命令和文件归属见 [开发指南](CONTRIBUTING.md)。静态配置预览见 [HTTP 契约样例](examples/http-contract/README.md)。维护者的 `docs/` 与个人 `AGENTS.md` 在本地维护，不随源码分发。
 
