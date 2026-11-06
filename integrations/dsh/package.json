@@ -1,0 +1,40 @@
+{
+  "name": "dsh-runcradle",
+  "version": "0.1.0-alpha.0",
+  "description": "RunCradle plugin entry and diagnostic probe for DeepSeek Harness",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": ["lib", "assets", "cordis.patch.yml", "README.md"],
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "engines": { "dsh": "0.2.2-rc.1", "node": ">=26.12.1 <27" },
+  "packageManager": "pnpm@12.9.1",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "pnpm run build && node --test tests/*.test.mjs",
+    "test:package": "pnpm run build && node scripts/test-package.mjs",
+    "test:smoke": "pnpm run build && node scripts/test-smoke.mjs"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-tools": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-skill": "0.2.2-rc.1"
+  },
+  "dependencies": { "@deepseek-ai/schemastery": "3.19.0" },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-tools": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-skill": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-system-prompt": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-tool-executor-native": "0.2.2-rc.1",
+    "typescript": "7.0.2",
+    "@types/node": "26.6.6"
+  }
+}
