@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "title": "数据检查与报告",
+  "description": "准备输出目录，检查 3 项数据，生成 output/report.txt。",
+  "nodes": {
+    "prepare": { "label": "准备工作区" },
+    "check": { "label": "检查数据" },
+    "report": { "label": "生成报告" }
+  }
+}

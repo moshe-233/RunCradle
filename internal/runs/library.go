@@ -14,10 +14,19 @@ import (
 	"runcradle/internal/engine"
 	"runcradle/internal/workflow"
 	"sort"
+	"strings"
 	"time"
 )
 
 var ErrConflict = errors.New("saved revision or request content conflicts")
+
+// WorkflowDeletion acknowledges removal of one library record, not its shared
+// immutable definitions, source files, or any running or historical execution.
+type WorkflowDeletion struct {
+	WorkflowID      string `json:"workflow_id"`
+	DeletedRevision string `json:"deleted_revision"`
+	Deleted         bool   `json:"deleted"`
+}
 
 type WorkflowRecord struct {
 	Version   int       `json:"schema_version"`
@@ -54,13 +63,9 @@ func (s *Store) SaveWorkflow(ctx context.Context, id, expected string, d workflo
 	}
 	defer release()
 	file := ".runcradle/library/" + id + ".json"
-	var record WorkflowRecord
-	err = s.read(file, &record, 2<<20)
+	record, err := s.workflowRecord(id)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return record, err
-	}
-	if err == nil && (record.ID != id || record.Version != 1 || !validID(record.Revision, 64)) {
-		return record, fmt.Errorf("library integrity mismatch")
 	}
 	if expected != record.Revision {
 		return record, ErrConflict
@@ -92,32 +97,48 @@ func (s *Store) SaveWorkflow(ctx context.Context, id, expected string, d workflo
 	return record, s.write(file, record)
 }
 
-func (s *Store) Workflow(id, revision string) (WorkflowRecord, workflow.Document, error) {
+// workflowRecord validates library metadata without opening its definition.
+// A missing archive must not prevent listing or deleting the library entry.
+func (s *Store) workflowRecord(id string) (WorkflowRecord, error) {
 	var record WorkflowRecord
 	if !validID(id, 64) {
-		return record, workflow.Document{}, fmt.Errorf("invalid workflow identity")
+		return record, fmt.Errorf("invalid workflow identity")
 	}
 	if err := private(s.root, ".runcradle/library", false); err != nil {
-		return record, workflow.Document{}, err
+		return record, err
 	}
 	if err := s.read(".runcradle/library/"+id+".json", &record, 2<<20); err != nil {
-		return record, workflow.Document{}, err
+		return record, err
 	}
 	if record.Version != 1 || record.ID != id || !validID(record.Revision, 64) || len(record.Revisions) == 0 || len(record.Revisions) > 4096 {
-		return record, workflow.Document{}, fmt.Errorf("library integrity mismatch")
+		return record, fmt.Errorf("library integrity mismatch")
+	}
+	head := false
+	for _, r := range record.Revisions {
+		if !validID(r, 64) {
+			return record, fmt.Errorf("invalid library revision")
+		}
+		head = head || r == record.Revision
+	}
+	if !head {
+		return record, fmt.Errorf("library head is not a version of this workflow")
+	}
+	return record, nil
+}
+
+func (s *Store) Workflow(id, revision string) (WorkflowRecord, workflow.Document, error) {
+	record, err := s.workflowRecord(id)
+	if err != nil {
+		return record, workflow.Document{}, err
 	}
 	if revision == "" {
 		revision = record.Revision
 	}
-	found, head := false, false
+	found := false
 	for _, r := range record.Revisions {
-		if !validID(r, 64) {
-			return record, workflow.Document{}, fmt.Errorf("invalid library revision")
-		}
 		found = found || r == revision
-		head = head || r == record.Revision
 	}
-	if !found || !head {
+	if !found {
 		return record, workflow.Document{}, fmt.Errorf("revision is not a version of this workflow")
 	}
 	d, err := s.Definition(revision)
@@ -125,6 +146,42 @@ func (s *Store) Workflow(id, revision string) (WorkflowRecord, workflow.Document
 		err = fmt.Errorf("workflow workspace mismatch")
 	}
 	return record, d, err
+}
+
+func (s *Store) DeleteWorkflow(ctx context.Context, id, expected string) (WorkflowDeletion, error) {
+	if !validID(id, 64) || !validID(expected, 64) || expected != strings.ToLower(expected) {
+		return WorkflowDeletion{}, fmt.Errorf("workflow identity and 64-character lowercase hexadecimal expected_revision required")
+	}
+	op, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	release, err := s.lock(op, ".runcradle/locks/library-"+id+".lock")
+	if err != nil {
+		return WorkflowDeletion{}, err
+	}
+	defer release()
+	record, err := s.workflowRecord(id)
+	if err != nil {
+		return WorkflowDeletion{}, err
+	}
+	if expected != record.Revision {
+		return WorkflowDeletion{}, ErrConflict
+	}
+	if err = op.Err(); err != nil {
+		return WorkflowDeletion{}, err
+	}
+	if err = s.root.Remove(".runcradle/library/" + id + ".json"); err != nil {
+		return WorkflowDeletion{}, err
+	}
+	// Match SaveWorkflow's durability boundary. A failure after unlink remains
+	// an uncertain mutation and callers must reconcile rather than auto-retry.
+	dir, err := s.root.Open(".runcradle/library")
+	if err != nil {
+		return WorkflowDeletion{}, err
+	}
+	if err = errors.Join(dir.Sync(), dir.Close()); err != nil {
+		return WorkflowDeletion{}, err
+	}
+	return WorkflowDeletion{WorkflowID: id, DeletedRevision: record.Revision, Deleted: true}, nil
 }
 
 func (s *Store) ListWorkflows(offset, limit int) ([]WorkflowRecord, bool, error) {
@@ -155,7 +212,11 @@ func (s *Store) ListWorkflows(offset, limit int) ([]WorkflowRecord, bool, error)
 			continue
 		}
 		id := entry.Name()[:len(entry.Name())-5]
-		r, _, e := s.Workflow(id, "")
+		r, e := s.workflowRecord(id)
+		// A concurrently deleted entry is absent from this page.
+		if errors.Is(e, os.ErrNotExist) {
+			continue
+		}
 		if e != nil {
 			return nil, false, e
 		}

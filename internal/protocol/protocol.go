@@ -23,6 +23,10 @@ type Draft struct {
 	UIPath   string  `json:"ui_path,omitempty"`
 }
 
+type DeleteWorkflowRequest struct {
+	ExpectedRevision string `json:"expected_revision"`
+}
+
 type RunRequest struct {
 	WorkflowID string                     `json:"workflow_id,omitempty"`
 	Revision   string                     `json:"revision"`
@@ -112,7 +116,7 @@ func Describe() Description {
 		APIVersion:     APIVersion, ContractVersion: ContractVersion,
 		Transports: []string{"cli-json", "http-json", "sse"},
 		OpenAPI:    "/api/v1/openapi.json", CredentialFile: ".runcradle/server/connection.json",
-		Features:   []string{"workflow_library", "cas_save", "structured_edit", "idempotent_run", "detached_submit", "event_resume", "offline_inspect", "explicit_stop"},
+		Features:   []string{"workflow_library", "cas_save", "workflow_delete", "structured_edit", "idempotent_run", "detached_submit", "event_resume", "offline_inspect", "explicit_stop"},
 		Limits:     Limits{MaxRequestBytes, MaxResponseBytes, MaxCLIBytes, 20, 100, 4, 32, 8, 300000, 3600000},
 		NextAction: "use api schema for the complete contract; start serve explicitly for online operations",
 	}

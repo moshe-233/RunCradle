@@ -244,6 +244,19 @@ func (s *Server) routes(m *http.ServeMux, cfg Config) {
 		}
 		reply(w, 200, s.documentReply(d, &record))
 	})
+	m.HandleFunc("DELETE /api/v1/workflows/{id}", func(w http.ResponseWriter, r *http.Request) {
+		var input protocol.DeleteWorkflowRequest
+		if e := readJSON(w, r, &input); e != nil {
+			apiError(w, e)
+			return
+		}
+		deleted, e := s.Store.DeleteWorkflow(r.Context(), r.PathValue("id"), input.ExpectedRevision)
+		if e != nil {
+			apiError(w, e)
+			return
+		}
+		reply(w, 200, deleted)
+	})
 	m.HandleFunc("POST /api/v1/workflows/{id}/copy", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
 			Revision string `json:"revision"`

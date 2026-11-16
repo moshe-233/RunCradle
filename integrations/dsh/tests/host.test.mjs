@@ -89,11 +89,13 @@ test('default Skill is discoverable and readable; false config omits it', async 
   const ctx = await fixture(t, { skills: true });
   const plugin = await ctx.plugin(host, {});
   await eventually(async () => (await ctx.skills.list()).length === 1);
-  const skill = await ctx.skills.get('runcradle-entry');
-  assert.equal(skill.provider, 'runcradle-entry');
+  const skill = await ctx.skills.get('runcradle');
+  assert.ok(skill, 'RunCradle must be discoverable by its public skill name');
+  assert.equal(skill.provider, 'runcradle');
   assert.equal(skill.source, 'bundled');
   assert.match(skill.content, /runcradle_probe/);
-  assert.match(skill.content, /尚未提供/);
+  assert.match(skill.content, /runcradle_run/);
+  assert.match(skill.content, /runcradle_inspect/);
   assert.equal(skill.invocation.modelInvocable, true);
   await plugin.dispose();
   assert.deepEqual(await ctx.skills.list(), []);
@@ -116,7 +118,7 @@ test('missing, late, withdrawn and restored skills service does not disable tool
   for (let i = 0; i < 3; i++) {
     const skills = await ctx.plugin(SkillRegistry);
     await eventually(async () => (await ctx.skills.list()).length === 1);
-    assert.match((await ctx.skills.get('runcradle-entry')).content, /runcradle_probe/);
+    assert.match((await ctx.skills.get('runcradle')).content, /runcradle_probe/);
     await skills.dispose();
     assert.equal((await call(ctx)).isError, false);
   }
@@ -167,5 +169,38 @@ test('config reload toggles only the optional Skill without accumulating tools',
     await eventually(async () => (await ctx.skills.list()).length === (enableSkill ? 1 : 0));
     assert.equal(ctx.tools.schemas().length, 1);
     assert.equal((await call(ctx)).isError, false);
+  }
+});
+
+test('configured tools wait for optional services and unload without touching a workspace', async (t) => {
+  const ctx = await fixture(t);
+  const plugin = await ctx.plugin(host, { runcradleExecutable: '/test/runcradle' });
+  assert.equal(ctx.tools.schemas().length, 1);
+  ctx.provide('subprocess'); ctx.provide('workingDirectory');
+  ctx.set('subprocess', { resolveExecutable() { throw new Error('must not resolve on load'); }, spawn() { throw new Error('must not spawn on load'); } });
+  ctx.set('workingDirectory', { get() { throw new Error('must not read on load'); } });
+  await eventually(() => ctx.tools.schemas().length === 11);
+  const names = ctx.tools.schemas().map((v) => v.name).sort();
+  assert.deepEqual(names, ['runcradle_inspect', 'runcradle_probe', 'runcradle_run', 'runcradle_runs', 'runcradle_stop', 'runcradle_workflow_delete', 'runcradle_workflow_get', 'runcradle_workflow_import', 'runcradle_workflow_save', 'runcradle_workflow_validate', 'runcradle_workflows']);
+  const missingAgent = await call(ctx, {}, new AbortController().signal, 'runcradle_runs');
+  assert.equal(missingAgent.value.ok, false);
+  assert.match(missingAgent.value.error, /Agent/);
+  await plugin.dispose();
+  assert.equal(ctx.tools.schemas().length, 0);
+  await assert.rejects(async () => { await ctx.plugin(host, { runcradleExecutable: 'relative' }); }, /absolute/);
+});
+
+test('failed business calls also fit the 64 KiB tool result budget', async (t) => {
+  const ctx = await fixture(t);
+  ctx.provide('subprocess'); ctx.provide('workingDirectory');
+  ctx.set('subprocess', { resolveExecutable() { throw new Error('must not resolve'); }, spawn() { throw new Error('must not spawn'); } });
+  ctx.set('workingDirectory', {});
+  await ctx.plugin(host, { runcradleExecutable: '/test/runcradle' });
+  await eventually(() => ctx.tools.schemas().length === 11);
+  for (const workspace of ['a'.repeat(70000), '\u0001'.repeat(20000), '中'.repeat(30000)]) {
+    const result = await call(ctx, { workspace }, new AbortController().signal, 'runcradle_runs');
+    assert.equal(result.value.ok, false);
+    assert.ok(Buffer.byteLength(JSON.stringify(result.value)) <= 65536);
+    assert.ok(Buffer.byteLength(result.content[0].text) <= 65536);
   }
 });

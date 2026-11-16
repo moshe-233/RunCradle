@@ -14,7 +14,7 @@ try {
   const tarball = await pack(work);
   const listing = await work.run('contents', 'tar', ['-tzf', tarball]);
   const entries = listing.stdout.trim().split('\n');
-  for (const required of ['package.json', 'cordis.patch.yml', 'lib/index.js', 'lib/index.d.ts', 'assets/SKILL.md', 'README.md']) {
+  for (const required of ['package.json', 'cordis.patch.yml', 'lib/index.js', 'lib/index.d.ts', 'lib/client.js', 'lib/panel/host.js', 'lib/shared/access.js', 'lib/shared/artifacts.js', 'lib/shared/api.js', 'lib/workflows/contract.js', 'lib/workflows/draft.js', 'lib/workflows/results.js', 'lib/workflows/tools.js', 'assets/SKILL.md', 'assets/references/workflow-tools.md', 'README.md']) {
     assert.ok(entries.includes(`package/${required}`), `missing packed ${required}`);
   }
   assert.ok(entries.every((name) => /^package\/(lib\/|assets\/|package.json$|cordis.patch.yml$|README.md$|LICENSE(?:\.md)?$)/.test(name)), 'unexpected file in package');
@@ -28,6 +28,8 @@ try {
   assert.equal(packedManifest.engines.dsh, '0.2.2-rc.1');
   assert.equal(packedManifest.dsh.bundle.patch, './cordis.patch.yml');
   assert.equal(packedManifest.exports['.'].default, './lib/index.js');
+  assert.equal(packedManifest.exports['./client'], './lib/client.js');
+  assert.equal(packedManifest.dsh.client.platform, 'web');
   const ctx = new Context();
   try {
     await ctx.plugin(SystemPrompt);
@@ -48,9 +50,16 @@ try {
     const result = await call('packed', { echo: '解包验证' });
     assert.equal(result.isError, false);
     assert.deepEqual(result.value, { plugin: manifest.name, version: manifest.version, echo: '解包验证' });
-    assert.match((await ctx.skills.get('runcradle-entry')).content, /runcradle_probe/);
+    assert.match((await ctx.skills.get('runcradle')).content, /runcradle_probe/);
+    const skill = await ctx.skills.get('runcradle');
+    assert.equal(skill.name, 'runcradle');
+    assert.match(await readFile(join(skill.resourceBase.path, 'references/workflow-tools.md'), 'utf8'), /expected_revision/);
+    const workflow = await import(pathToFileURL(join(extracted, 'lib/workflows/tools.js')).href);
+    assert.deepEqual(Object.keys(workflow.workflowParameters).sort(), ['workflow_delete', 'workflow_get', 'workflow_import', 'workflow_save', 'workflow_validate', 'workflows']);
+    assert.equal(workflow.workflowParameters.workflow_save.draft_revision.required, true);
+    assert.match((await ctx.skills.get('runcradle')).content, /runcradle_workflow_save/);
     await rm(join(extracted, 'assets/SKILL.md'));
-    await assert.rejects(() => ctx.skills.get('runcradle-entry'), /ENOENT/);
+    await assert.rejects(() => ctx.skills.get('runcradle'), /ENOENT/);
     assert.equal((await call('missing-skill', {})).isError, false);
   } finally {
     await ctx.fiber.dispose();

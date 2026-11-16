@@ -28,7 +28,7 @@ func (f *journalEngine) Start(_ context.Context, r engine.StartRequest) (engine.
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.events = make(chan engine.Event)
-	f.state = engine.Snapshot{Version: 1, RunID: r.RunID, Revision: r.Source.Revision, Targets: r.Targets, TaskResult: "pending", Reason: "running", HistoryIntegrity: "complete", Nodes: []engine.Node{{ID: r.Source.Document.View.Nodes[0].ID, Name: "a"}}}
+	f.state = engine.Snapshot{Version: 1, RunID: r.RunID, Revision: r.Source.Revision, WorkflowID: r.Source.WorkflowID, Targets: r.Targets, TaskResult: "pending", Reason: "running", HistoryIntegrity: "complete", Nodes: []engine.Node{{ID: r.Source.Document.View.Nodes[0].ID, Name: "a"}}}
 	return engine.RunHandle{RunID: r.RunID}, nil
 }
 func (f *journalEngine) Snapshot(context.Context, engine.RunHandle) (engine.Snapshot, error) {

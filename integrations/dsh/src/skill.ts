@@ -5,10 +5,10 @@ import { BUNDLED_SKILL_RANK, type SkillCandidate } from '@deepseek-ai/dsh-skill'
 
 const bodyUrl = new URL('../assets/SKILL.md', import.meta.url);
 const candidate: SkillCandidate = {
-  name: 'runcradle-entry',
-  description: 'Check the RunCradle DSH plugin entry, use its diagnostic probe, and understand the currently available capabilities.',
+  name: 'runcradle',
+  description: 'Use when a user asks to create, edit, save, delete, run or inspect RunCradle workflows in DSH, including natural-language requests about task dependencies, data checks, pipelines or reports in a RunCradle workspace.',
   invocation: { modelInvocable: true, userInvocable: true },
-  provider: 'runcradle-entry',
+  provider: 'runcradle',
   source: 'bundled',
   resourceBase: { kind: 'directory', path: fileURLToPath(new URL('../assets/', import.meta.url)) },
   rank: BUNDLED_SKILL_RANK,

@@ -103,14 +103,14 @@ func apiCommandRun(ctx context.Context, args []string, stdout, stderr io.Writer)
 	}
 	var body []byte
 	if command == "request" {
-		if method != "GET" && method != "POST" && method != "PUT" {
-			return bad(2, "invalid_request", fmt.Errorf("method must be GET, POST or PUT"))
+		if method != "GET" && method != "POST" && method != "PUT" && method != "DELETE" {
+			return bad(2, "invalid_request", fmt.Errorf("method must be GET, POST, PUT or DELETE"))
 		}
 		if err := hostclient.ValidatePath(resource); err != nil {
 			return bad(2, "invalid_request", err)
 		}
 		if method == "GET" && input != "" || method != "GET" && input == "" {
-			return bad(2, "invalid_request", fmt.Errorf("GET has no input; POST/PUT require --input containing one JSON object"))
+			return bad(2, "invalid_request", fmt.Errorf("GET has no input; POST/PUT/DELETE require --input containing one JSON object"))
 		}
 		if input != "" {
 			body, _, err = workflow.ReadFile(*workspace, input, protocol.MaxRequestBytes)

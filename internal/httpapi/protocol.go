@@ -13,7 +13,7 @@ func (s *Server) protocolRoutes(m *http.ServeMux) {
 	// swallow API failures. Probe registered methods to preserve an honest Allow.
 	m.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		var allowed []string
-		for _, method := range []string{"GET", "HEAD", "POST", "PUT"} {
+		for _, method := range []string{"GET", "HEAD", "POST", "PUT", "DELETE"} {
 			probe := r.Clone(r.Context())
 			probe.Method = method
 			_, pattern := m.Handler(probe)

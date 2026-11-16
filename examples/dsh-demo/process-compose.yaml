@@ -1,0 +1,26 @@
+version: "0.5"
+processes:
+  prepare:
+    entrypoint:
+      - python3
+      - -c
+      - "from pathlib import Path; Path('output').mkdir(exist_ok=True); print('工作区已准备好', flush=True)"
+  check:
+    entrypoint:
+      - python3
+      - -c
+      - "import json,time; from pathlib import Path; print('正在检查 3 项数据…', flush=True); time.sleep(3); Path('output/check.json').write_text(json.dumps({'items':3,'passed':3})); print('3 项检查全部通过', flush=True)"
+    depends_on:
+      prepare:
+        condition: process_completed_successfully
+  report:
+    entrypoint:
+      - python3
+      - -c
+      - "import json; from pathlib import Path; d=json.loads(Path('output/check.json').read_text()); text='RunCradle Demo：'+str(d['passed'])+'/'+str(d['items'])+' 项检查通过'; Path('output/report.txt').write_text(text+chr(10)); print(text, flush=True)"
+    depends_on:
+      check:
+        condition: process_completed_successfully
+    availability:
+      restart: "no"
+      exit_on_end: true

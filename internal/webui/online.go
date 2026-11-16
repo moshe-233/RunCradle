@@ -37,7 +37,9 @@ func Handler() http.Handler {
 			raw = append(raw, extra...)
 		}
 		w.Header().Set("Content-Type", mime)
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+		// The HTTP server supplies frame-ancestors (DENY by default, or one
+		// explicitly configured local DSH origin). Keep both policies active.
+		w.Header().Add("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src data:; object-src 'none'; base-uri 'none'; form-action 'none'")
 		_, _ = w.Write(raw)
 	})
 }

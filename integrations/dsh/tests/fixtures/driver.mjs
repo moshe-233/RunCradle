@@ -16,7 +16,7 @@ export function apply(ctx) {
     const entry = [...ctx.loader.entries()].find((entry) => entry.options.id === 'runcradle-host' && entry.options.name === 'dsh-runcradle');
     return {
       tools: ctx.tools.schemas().filter((tool) => tool.name === 'runcradle_probe').length,
-      skills: (await ctx.skills.list()).filter((skill) => skill.name === 'runcradle-entry').length,
+      skills: (await ctx.skills.list()).filter((skill) => skill.name === 'runcradle').length,
       active: entry?.fiber?.state === 2,
       reloads,
     };
@@ -56,7 +56,7 @@ export function apply(ctx) {
       assert.equal(blocked.isError, true);
       assert.equal(blocked.error.info.code, 'UNKNOWN_TOOL');
       assert.equal((await call(allowed.agent, {})).isError, false);
-      const skill = await ctx.skills.get('runcradle-entry', { scope: allowed.agent });
+      const skill = await ctx.skills.get('runcradle', { scope: allowed.agent });
       assert.match(skill.content, /runcradle_probe/);
       return { realAgents: 2, scopedVisibility: true, promptSchema: true, calls: true, denyIsolation: true, skill: true };
     } finally {

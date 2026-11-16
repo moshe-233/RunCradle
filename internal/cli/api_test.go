@@ -122,6 +122,30 @@ func TestAPIRequestCoversLibraryAndPreservesStructuredFailures(t *testing.T) {
 	if code != 0 || err != nil || !bytes.HasPrefix(raw, []byte("PK")) {
 		t.Fatalf("export: %d %v %v", code, receipt, err)
 	}
+	deleteBody := `{"expected_revision":"` + doc.Workflow.Revision + `"}`
+	if err := os.WriteFile(filepath.Join(dir, "delete.json"), []byte(deleteBody), 0600); err != nil {
+		t.Fatal(err)
+	}
+	code, receipt = apiCommand(t, "request", "--workspace", dir, "--method", "DELETE", "--path", path, "--out", "no-input.json")
+	if code != 2 || string(receipt["code"]) != `"invalid_request"` {
+		t.Fatalf("delete needs JSON input: %d %v", code, receipt)
+	}
+	code, receipt = apiCommand(t, "request", "--workspace", dir, "--method", "DELETE", "--path", path, "--input", "delete.json", "--out", "deleted.json")
+	if code != 0 || string(receipt["http_status"]) != "200" {
+		t.Fatalf("delete: %d %v", code, receipt)
+	}
+	raw, err = os.ReadFile(filepath.Join(dir, "deleted.json"))
+	var deleted runs.WorkflowDeletion
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(raw, &deleted); err != nil || !deleted.Deleted || deleted.WorkflowID != doc.Workflow.ID || deleted.DeletedRevision != doc.Workflow.Revision {
+		t.Fatalf("delete response: %s %v", raw, err)
+	}
+	code, receipt = apiCommand(t, "request", "--workspace", dir, "--method", "DELETE", "--path", path, "--input", "delete.json", "--out", "delete-absent.json")
+	if code != 2 || string(receipt["http_status"]) != "404" || string(receipt["code"]) != `"not_found"` {
+		t.Fatalf("repeated delete: %d %v", code, receipt)
+	}
 }
 
 func TestAPIOutputMustBeReservedBeforeAnyWriteRequest(t *testing.T) {

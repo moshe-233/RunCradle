@@ -13,6 +13,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runcradle/internal/output"
@@ -30,12 +31,14 @@ type Config struct {
 	Workspace, Binary, Helper string
 	Port                      int
 	Page                      http.Handler
+	FrameOrigin               string
 }
 type Server struct {
 	URL          string
 	Host         *service.Host
 	Store        *runs.Store
 	workspace    string
+	frameOrigin  string
 	descriptor   runs.ServerDescriptor
 	http         *http.Server
 	release      func() error
@@ -69,6 +72,15 @@ func Open(cfg Config) (*Server, error) {
 	}
 	if cfg.Port < 0 || cfg.Port > 65535 {
 		return nil, fmt.Errorf("port must be 0..65535")
+	}
+	if cfg.FrameOrigin != "" {
+		u, err := url.Parse(cfg.FrameOrigin)
+		if err != nil || u.Scheme != "http" || u.Hostname() != "127.0.0.1" || u.Port() == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" || u.String() != "http://"+u.Host {
+			return nil, fmt.Errorf("frame-origin must be an exact http://127.0.0.1:PORT origin")
+		}
+		if _, err := net.ResolveTCPAddr("tcp4", u.Host); err != nil {
+			return nil, fmt.Errorf("invalid frame-origin port: %w", err)
+		}
 	}
 	workspace, e := filepath.Abs(cfg.Workspace)
 	if e != nil {
@@ -123,6 +135,7 @@ func Open(cfg Config) (*Server, error) {
 	}
 	ctx, stop := context.WithCancel(context.Background())
 	s := &Server{URL: "http://" + listener.Addr().String(), Store: store, workspace: workspace, release: release, ctx: ctx, cancel: stop, pairToken: pair, pairExpires: time.Now().Add(5 * time.Minute), sessionToken: session, streams: make(chan struct{}, 32), subscribers: map[string]int{}, done: make(chan error, 1)}
+	s.frameOrigin = cfg.FrameOrigin
 	s.Host = service.NewHost(store, cfg.Binary, cfg.Helper)
 	s.descriptor = runs.ServerDescriptor{Version: 1, URL: s.URL, InstanceID: instance, Workspace: workspace, Token: token}
 	mux := http.NewServeMux()
@@ -171,7 +184,12 @@ func (s *Server) boundary(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("X-Frame-Options", "DENY")
+		if s.frameOrigin == "" {
+			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+		} else {
+			w.Header().Set("Content-Security-Policy", "frame-ancestors "+s.frameOrigin)
+		}
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-RunCradle-Instance", s.descriptor.InstanceID)
 		w.Header().Set("X-RunCradle-Contract", protocol.ContractVersion)

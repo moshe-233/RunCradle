@@ -30,6 +30,11 @@ func OpenAPI() map[string]any {
 	field(save, "expected_revision", schema{"type": "string", "minLength": 1})
 	// Save consumes a finished draft; edits are applied by validate first.
 	save["description"] = "Save the finished draft with CAS. Apply edits through validate first."
+	deleteWorkflow := strict(wireSchema(protocol.DeleteWorkflowRequest{}))
+	field(deleteWorkflow, "expected_revision", schema{"type": "string", "pattern": "^[0-9a-f]{64}$"})
+	deleteWorkflow["description"] = "Delete one library record with CAS against its current head. Definitions, source files, copies, active runs and run history are retained. Reconcile the library after an uncertain response; never retry automatically."
+	deletion := wireSchema(runs.WorkflowDeletion{})
+	field(deletion, "deleted", schema{"type": "boolean", "const": true})
 	run := strict(wireSchema(protocol.RunRequest{}))
 	field(run, "request_id", schema{"type": "string", "minLength": 1, "maxLength": 128, "description": "At most 128 UTF-8 bytes. Reuse only for identical invocation; never rotate automatically after transport failure."})
 	field(run, "revision", schema{"type": "string", "minLength": 1})
@@ -56,6 +61,7 @@ func OpenAPI() map[string]any {
 	schemas := schema{
 		"Protocol": wireSchema(protocol.Describe()), "Problem": wireSchema(protocol.Problem{}),
 		"Draft": draft, "ValidateRequest": draftRequestSchema, "SaveRequest": save, "Document": document,
+		"DeleteWorkflowRequest": deleteWorkflow, "WorkflowDeletion": deletion,
 		"Edit": edit, "WorkbenchEdit": workbench,
 		"RunRequest": run, "Submission": wireSchema(protocol.Submission{}), "Snapshot": snapshot,
 		"Event": wireSchema(engine.Event{}), "Invocation": wireSchema(service.Invocation{}),
@@ -131,6 +137,7 @@ func OpenAPI() map[string]any {
 	add("POST", "/api/v1/workflows", "workflow.create", "Draft", "Document", "201")
 	add("GET", "/api/v1/workflows/{id}", "workflow.get", "", "Document", "200", revision)
 	add("PUT", "/api/v1/workflows/{id}", "workflow.save", "SaveRequest", "Document", "200")
+	add("DELETE", "/api/v1/workflows/{id}", "workflow.delete", "DeleteWorkflowRequest", "WorkflowDeletion", "200")
 	add("POST", "/api/v1/workflows/{id}/copy", "workflow.copy", "CopyRequest", "Document", "201")
 	add("GET", "/api/v1/workflows/{id}/export", "workflow.export", "", "zip", "200", revision)
 	add("POST", "/api/v1/runs", "run.submit", "RunRequest", "Submission", "202")

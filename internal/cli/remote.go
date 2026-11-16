@@ -18,6 +18,7 @@ func serve(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	workspace := flags.String("workspace", "", "")
 	port := flags.Int("port", 0, "")
 	binary := flags.String("process-compose", "", "")
+	frameOrigin := flags.String("frame-origin", "", "")
 	if e := flags.Parse(args); e != nil {
 		return failure(stdout, 2, "arguments", e.Error())
 	}
@@ -32,7 +33,7 @@ func serve(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if e != nil {
 		return failure(stdout, 125, "host", e.Error())
 	}
-	server, e := httpapi.Open(httpapi.Config{Workspace: *workspace, Binary: resolved.Path, Helper: helper, Port: *port, Page: webui.Handler()})
+	server, e := httpapi.Open(httpapi.Config{Workspace: *workspace, Binary: resolved.Path, Helper: helper, Port: *port, Page: webui.Handler(), FrameOrigin: *frameOrigin})
 	if e != nil {
 		return failure(stdout, 2, "host", e.Error())
 	}

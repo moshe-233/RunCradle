@@ -22,7 +22,7 @@ Usage:
   runcradle api schema --workspace DIR --out FILE
   runcradle api status --workspace DIR
   runcradle api request --workspace DIR --path /api/v1/RESOURCE --out FILE
-                       [--method GET|POST|PUT] [--input JSON_FILE] [--timeout-ms N]
+                       [--method GET|POST|PUT|DELETE] [--input JSON_FILE] [--timeout-ms N]
   runcradle workflow validate --workspace DIR --file FILE [--ui FILE]
                               [--check-engine] [--process-compose PATH]
 
